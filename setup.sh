@@ -104,9 +104,9 @@ VMESS_UUID=$(openssl rand -hex 8)-$(openssl rand -hex 4)-$(openssl rand -hex 4)-
 PRIVATE_KEY=$(openssl ecparam -genkey -name prime256v1 -noout | openssl ec -outform PEM | sed -n '2,$ p' | tr -d '\n')
 PUBLIC_KEY=$(echo "$PRIVATE_KEY" | openssl ec -pubout -outform PEM | sed -n '2,$ p' | tr -d '\n')
 SHORT_ID=$(openssl rand -hex 8)
-SERVER_NAME=www.microsoft.com
+SERVER_NAME=google.com
 SNI=$SERVER_NAME
-PORT_VLESS=443
+PORT_VLESS=8443
 PORT_SHADOWSOCKS=8443
 PORT_AMNEZIAWG=51820
 PASSWORD_SS=$(openssl rand -base64 32)
@@ -124,15 +124,16 @@ EOF
     log_info "Секреты сгенерированы и загружены"
 }
 
-# Создание шаблонов конфигурации
+# Создание шаблонов конфигурации (только если файлы не существуют)
 create_configs() {
-    log_info "Создание конфигурационных файлов..."
+    log_info "Проверка/создание шаблонов конфигурационных файлов..."
     
     # Создание директории configs, если не существует
     mkdir -p configs
     
-    # Шаблон конфигурации Xray
-    cat > configs/xray.json.template << 'EOF'
+    # Создание шаблона конфигурации Xray, если он не существует
+    if [[ ! -f configs/xray.json.template ]]; then
+        cat > configs/xray.json.template << 'EOF'
 {
   "log": {
     "loglevel": "warning"
@@ -160,7 +161,7 @@ create_configs() {
         "security": "reality",
         "realitySettings": {
           "show": false,
-          "dest": "${SNI}:443",
+          "dest": "${SNI}:8443",
           "xver": 0,
           "uot": 1,
           "cipher": "none",
@@ -189,9 +190,14 @@ create_configs() {
   ]
 }
 EOF
-
-    # Шаблон конфигурации AmneziaWG
-    cat > configs/amnezia.conf.template << 'EOF'
+        log_info "Создан шаблон конфигурации Xray"
+    else
+        log_info "Шаблон конфигурации Xray уже существует, пропускаем создание"
+    fi
+    
+    # Создание шаблона конфигурации AmneziaWG, если он не существует
+    if [[ ! -f configs/amnezia.conf.template ]]; then
+        cat > configs/amnezia.conf.template << 'EOF'
 [Interface]
 PrivateKey = ${WG_PRIVATE_KEY}
 Address = 10.8.0.1/24
@@ -210,15 +216,18 @@ PublicKey = ${WG_PUBLIC_KEY}
 AllowedIPs = 10.8.0.2/32
 PresharedKey = ${WG_PASSWORD}
 EOF
-
-    log_info "Шаблоны конфигурационных файлов созданы"
+        log_info "Создан шаблон конфигурации AmneziaWG"
+    else
+        log_info "Шаблон конфигурации AmneziaWG уже существует, пропускаем создание"
+    fi
 }
 
-# Создание docker-compose.yml
+# Создание docker-compose.yml (только если файл не существует)
 create_docker_compose() {
-    log_info "Создание docker-compose.yml..."
-    
-    cat > docker-compose.yml << 'EOF'
+    if [[ ! -f docker-compose.yml ]]; then
+        log_info "Создание docker-compose.yml..."
+        
+        cat > docker-compose.yml << 'EOF'
 version: '3.8'
 
 services:
@@ -248,12 +257,16 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
+      - SYS_MODULE
     sysctls:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
 EOF
 
-    log_info "Файл docker-compose.yml создан"
+        log_info "Файл docker-compose.yml создан"
+    else
+        log_info "Файл docker-compose.yml уже существует, пропускаем создание"
+    fi
 }
 
 # Подготовка конфигурационных файлов
@@ -264,8 +277,19 @@ prepare_configs() {
     mkdir -p xray amnezia
     
     # Подстановка значений в шаблоны
-    envsubst < configs/xray.json.template > xray_config.json
-    envsubst < configs/amnezia.conf.template > amnezia_wg.conf
+    if [[ -f configs/xray.json.template ]]; then
+        envsubst < configs/xray.json.template > xray_config.json
+    else
+        log_error "Шаблон конфигурации Xray не найден: configs/xray.json.template"
+        exit 1
+    fi
+    
+    if [[ -f configs/amnezia.conf.template ]]; then
+        envsubst < configs/amnezia.conf.template > amnezia_wg.conf
+    else
+        log_error "Шаблон конфигурации AmneziaWG не найден: configs/amnezia.conf.template"
+        exit 1
+    fi
     
     log_info "Конфигурационные файлы подготовлены"
 }
@@ -321,40 +345,119 @@ show_connection_info() {
     
     # Вывод VLESS ссылки
     echo -e "${BLUE}VLESS + Reality:${NC}"
-    echo "vless://${UUID}@${ip}:${PORT_VLESS}?security=reality&sni=${SNI}&fp=chrome&type=tcp&flow=xtls-rprx-vision&sid=${SHORT_ID}#$SERVER_NAME"
+    local vless_link="vless://${UUID}@${ip}:${PORT_VLESS}?security=reality&sni=${SNI}&fp=chrome&type=tcp&flow=xtls-rprx-vision&sid=${SHORT_ID}#$SERVER_NAME"
+    echo "$vless_link"
     echo ""
     
     # Вывод Shadowsocks ссылки
     echo -e "${BLUE}Shadowsocks-2022:${NC}"
     local ss_base64=$(echo -n "2022-blake3-aes-128-gcm:${PASSWORD_SS}@${ip}:${PORT_SHADOWSOCKS}" | base64 -w 0)
-    echo "ss://${ss_base64}#${SERVER_NAME}"
+    local ss_link="ss://${ss_base64}#${SERVER_NAME}"
+    echo "$ss_link"
     echo ""
     
     # Вывод AmneziaWG конфига
     echo -e "${BLUE}AmneziaWG конфиг:${NC}"
-    echo "[Interface]"
-    echo "PrivateKey = ${WG_PRIVATE_KEY}"
-    echo "Address = 10.8.0.2/32"
-    echo "DNS = 8.8.8.8, 1.1.1.1"
-    echo "MTU = 1420"
-    echo "Jc = 5-10"
-    echo "Jmin = 100"
-    echo "Jmax = 1000"
-    echo "S1 = 10-20"
-    echo "S2 = 100-200"
-    echo "H1 = 500-1000"
-    echo "H2 = 1000-2000"
-    echo "H3 = 1500-2500"
-    echo "H4 = 2000-3000"
-    echo "[Peer]"
-    echo "PublicKey = ${WG_PUBLIC_KEY}"
-    echo "AllowedIPs = 0.0.0.0/0, ::/0"
-    echo "Endpoint = ${ip}:${PORT_AMNEZIAWG}"
-    echo "PersistentKeepalive = 25"
-    echo "PresharedKey = ${WG_PASSWORD}"
+    local amnezia_config="[Interface]
+PrivateKey = ${WG_PRIVATE_KEY}
+Address = 10.8.0.2/32
+DNS = 8.8.8.8, 1.1.1.1
+MTU = 1420
+Jc = 5-10
+Jmin = 100
+Jmax = 1000
+S1 = 10-20
+S2 = 100-200
+H1 = 500-1000
+H2 = 1000-2000
+H3 = 1500-2500
+H4 = 2000-3000
+[Peer]
+PublicKey = ${WG_PUBLIC_KEY}
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = ${ip}:${PORT_AMNEZIAWG}
+PersistentKeepalive = 25
+PresharedKey = ${WG_PASSWORD}"
+    echo "$amnezia_config"
     echo ""
     
     log_info "Подключение к сервисам должно быть доступно в течение 30 секунд"
+    
+    # Создание файла с инструкциями и ссылками
+    create_connection_guide "$ip" "$vless_link" "$ss_link" "$amnezia_config"
+}
+
+# Создание файла с инструкциями и ссылками для подключения
+create_connection_guide() {
+    local ip=$1
+    local vless_link=$2
+    local ss_link=$3
+    local amnezia_config=$4
+    
+    local guide_file="connection_guide.txt"
+    
+    cat > "$guide_file" << EOF
+ИНСТРУКЦИЯ ПО ПОДКЛЮЧЕНИЮ К VPN-СЕРВЕРУ
+===================================
+
+Ваш VPN-сервер успешно установлен и запущен!
+
+ТЕКУЩИЙ IP-АДРЕС СЕРВЕРА: $ip
+
+1. VLESS + REALITY
+-------------------
+Скопируйте следующую ссылку и добавьте в приложение:
+
+$vless_link
+
+Поддерживаемые приложения:
+- Android: v2rayNG, Hiddify
+- iOS: Shadowrocket, Quantumult X, Loon
+- Windows: Qv2ray, v2rayN
+- macOS: Qv2ray, ClashX
+- Linux: Qv2ray
+
+2. SHADOWSOCKS-2022
+--------------------
+Скопируйте следующую ссылку и добавьте в приложение:
+
+$ss_link
+
+Поддерживаемые приложения:
+- Android: v2rayNG, Shadowsocks
+- iOS: Shadowrocket, Shadowsocks
+- Windows: Shadowsocks Windows
+- macOS: ShadowsocksX-NG
+- Linux: shadowsocks-rust
+
+3. AMNEZIAGW
+-------------
+Скопируйте следующий конфигурационный файл:
+
+$amnezia_config
+
+Поддерживаемые приложения:
+- Все платформы: AmneziaVPN
+  Сайт: https://amnezia.org/
+
+АЛЬТЕРНАТИВНЫЙ МЕТОД ДЛЯ AMNEZIAGW:
+Сохраните приведенный выше конфигурационный файл с расширением .conf
+и импортируйте его в AmneziaVPN.
+
+ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ
+========================
+- Порт VLESS/Reality: $PORT_VLESS
+- Порт Shadowsocks: $PORT_SHADOWSOCKS
+- Порт AmneziaWG: $PORT_AMNEZIAWG
+- Сервер для маскировки: $SERVER_NAME
+
+При возникновении проблем с подключением:
+1. Проверьте, что порты открыты в firewall
+2. Убедитесь, что службы запущены: docker compose ps
+3. Посмотрите логи: docker compose logs xray и docker compose logs amnezia-wg
+EOF
+
+    log_info "Файл с инструкциями по подключению создан: $guide_file"
 }
 
 # Проверка работоспособности
@@ -385,9 +488,9 @@ main() {
     check_dependency wg wireguard-tools
     check_dependency envsubst gettext-base
     
-    # Проверка занятости порта 443
-    if lsof -Pi :443 -sTCP:LISTEN -t >/dev/null ; then
-        log_error "Порт 443 уже занят другим приложением. Остановите Nginx/Apache или выберите другой порт."
+    # Проверка занятости порта 8443
+    if lsof -Pi :8443 -sTCP:LISTEN -t >/dev/null ; then
+        log_error "Порт 8443 уже занят другим приложением. Остановите Nginx/Apache или выберите другой порт."
         exit 1
     fi
     
