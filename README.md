@@ -131,6 +131,32 @@ docker compose logs -f
 docker compose down
 ```
 
+**Удалить скаченные образы Docker:**
+
+Для удаления всех неиспользуемых образов:
+```bash
+docker image prune -a
+```
+
+Для удаления всех неиспользуемых ресурсов Docker (контейнеры, сети, образы, кэш):
+```bash
+docker system prune -a
+```
+
+Для удаления конкретных образов проекта:
+```bash
+docker rmi teddysun/xray ghcr.io/linuxserver/wireguard:latest
+```
+
+Для просмотра используемого пространства:
+```bash
+docker system df
+```
+
+```bash
+docker compose down
+```
+
 **Перезапустить (применить изменения конфига):**
 ```bash
 docker compose restart
