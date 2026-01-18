@@ -246,7 +246,7 @@ create_docker_compose() {
       - net.core.wmem_max=26214400
 
   amnezia-wg:
-    image: ghcr.io/amnezia-vpn/amneziawg:latest
+    image: ghcr.io/linuxserver/wireguard:latest
     container_name: amnezia-wg
     restart: unless-stopped
     network_mode: host
