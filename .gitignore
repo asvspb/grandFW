@@ -1,0 +1,42 @@
+# --- Security & Secrets (Самое важное) ---
+# Файл с переменными окружения (пароли, UUID, ключи)
+.env
+
+# Исключение: шаблон файла должен быть в репозитории
+!.env.template
+
+# --- Generated Configuration Files ---
+# Конфиги, которые генерирует скрипт install.sh на основе шаблонов
+# Предполагаем, что шаблоны лежат в configs/, а готовые файлы создаются в корне или подпапках
+xray/config.json
+amnezia/wg_config.conf
+wireguard/
+
+# --- Client Output ---
+# Папки или файлы, куда скрипт сохраняет ключи для пользователя
+clients/
+connection_links.txt
+qr_codes/
+*.png
+*.qr
+
+# --- Docker & Logs ---
+# Логи контейнеров и самого скрипта установки
+*.log
+xray_logs/
+setup.log
+
+# Папки с данными (Docker volumes), чтобы не загружать базы данных или состояние в git
+xray_db/
+amnezia_db/
+
+# --- OS & IDE Junk ---
+# Системные файлы macOS/Windows
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Настройки редакторов кода
+.idea/
+.vscode/
+*.swp
