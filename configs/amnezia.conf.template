@@ -1,0 +1,17 @@
+[Interface]
+PrivateKey = ${WG_PRIVATE_KEY}
+Address = 10.8.0.1/24
+MTU = 1420
+Jc = 5-10
+Jmin = 100
+Jmax = 1000
+S1 = 10-20
+S2 = 100-200
+H1 = 500-1000
+H2 = 1000-2000
+H3 = 1500-2500
+H4 = 2000-3000
+[Peer]
+PublicKey = ${WG_PUBLIC_KEY}
+AllowedIPs = 10.8.0.2/32
+PresharedKey = ${WG_PASSWORD}
