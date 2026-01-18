@@ -246,7 +246,7 @@ create_docker_compose() {
       - net.core.wmem_max=26214400
 
   amnezia-wg:
-    image: amnezia/amneziawg:latest
+    image: amnezia/amneziawg
     container_name: amnezia-wg
     restart: unless-stopped
     network_mode: host
@@ -478,6 +478,9 @@ health_check() {
 # Основная функция
 main() {
     log_info "Начало установки мульти-протокольного VPN-сервера"
+    
+    # Убедиться, что у файла есть права на выполнение
+    chmod +x "$0" 2>/dev/null || true
     
     check_root
     check_dependency docker docker.io
