@@ -385,6 +385,12 @@ main() {
     check_dependency wg wireguard-tools
     check_dependency envsubst gettext-base
     
+    # Проверка занятости порта 443
+    if lsof -Pi :443 -sTCP:LISTEN -t >/dev/null ; then
+        log_error "Порт 443 уже занят другим приложением. Остановите Nginx/Apache или выберите другой порт."
+        exit 1
+    fi
+    
     # Установка Docker, если не установлен
     if ! command -v docker &> /dev/null; then
         install_docker
