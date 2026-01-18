@@ -228,9 +228,7 @@ create_docker_compose() {
         log_info "Создание docker-compose.yml..."
         
         cat > docker-compose.yml << 'EOF'
-version: '3.8'
-
-services:
+        services:
   xray:
     image: teddysun/xray
     container_name: xray-core
@@ -248,7 +246,7 @@ services:
       - net.core.wmem_max=26214400
 
   amnezia-wg:
-    image: amneziawg/docker-amneziawg:latest
+    image: amnezia/amneziawg:latest
     container_name: amnezia-wg
     restart: unless-stopped
     network_mode: host
