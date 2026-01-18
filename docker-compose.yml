@@ -3,7 +3,10 @@ services:
     image: teddysun/xray
     container_name: xray-core
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "${PORT_VLESS}:${PORT_VLESS}/tcp"
+      - "${PORT_SHADOWSOCKS}:${PORT_SHADOWSOCKS}/tcp"
+      - "${PORT_SHADOWSOCKS}:${PORT_SHADOWSOCKS}/udp"
     volumes:
       - ./xray_config.json:/etc/xray/config.json:ro
     environment:
@@ -11,9 +14,6 @@ services:
     cap_add:
       - NET_ADMIN
       - NET_RAW
-    sysctls:
-      - net.core.rmem_max=26214400
-      - net.core.wmem_max=26214400
 
   amnezia-wg:
     image: ghcr.io/linuxserver/wireguard:latest

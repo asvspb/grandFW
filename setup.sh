@@ -233,7 +233,10 @@ create_docker_compose() {
     image: teddysun/xray
     container_name: xray-core
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "${PORT_VLESS}:${PORT_VLESS}/tcp"
+      - "${PORT_SHADOWSOCKS}:${PORT_SHADOWSOCKS}/tcp"
+      - "${PORT_SHADOWSOCKS}:${PORT_SHADOWSOCKS}/udp"
     volumes:
       - ./xray_config.json:/etc/xray/config.json:ro
     environment:
@@ -241,15 +244,13 @@ create_docker_compose() {
     cap_add:
       - NET_ADMIN
       - NET_RAW
-    sysctls:
-      - net.core.rmem_max=26214400
-      - net.core.wmem_max=26214400
 
   amnezia-wg:
     image: ghcr.io/linuxserver/wireguard:latest
     container_name: amnezia-wg
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "${PORT_AMNEZIAWG}:${PORT_AMNEZIAWG}/udp"
     volumes:
       - ./amnezia_wg.conf:/config/wg0.conf:ro
     cap_add:
@@ -310,7 +311,6 @@ setup_firewall() {
     ufw allow ${PORT_VLESS}/tcp
     ufw allow ${PORT_SHADOWSOCKS}/tcp
     ufw allow ${PORT_SHADOWSOCKS}/udp
-    ufw allow ${PORT_AMNEZIAWG}/udp
     ufw --force enable
     
     log_info "Брандмауэр UFW настроен"
