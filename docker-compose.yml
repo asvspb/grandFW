@@ -16,7 +16,7 @@ services:
       - net.core.wmem_max=26214400
 
   amnezia-wg:
-    image: amnezia/amneziawg
+    image: ghcr.io/amnezia-vpn/amneziawg:latest
     container_name: amnezia-wg
     restart: unless-stopped
     network_mode: host
