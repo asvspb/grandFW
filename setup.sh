@@ -251,14 +251,15 @@ create_docker_compose() {
     restart: unless-stopped
     network_mode: host
     volumes:
-      - ./amnezia_wg.conf:/etc/amnezia-wg/amnezia_wg.conf:ro
+      - ./amnezia_wg.conf:/config/wg0.conf:ro
     cap_add:
       - NET_ADMIN
       - NET_RAW
       - SYS_MODULE
-    sysctls:
-      - net.ipv4.ip_forward=1
-      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
 EOF
 
         log_info "Файл docker-compose.yml создан"
