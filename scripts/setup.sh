@@ -24,31 +24,31 @@ readonly LOG_FILE="${SCRIPT_DIR}/../setup.log"
 readonly BACKUP_DIR="${SCRIPT_DIR}/../backups"
 
 # Значения по умолчанию (инициализируем переменные, чтобы избежать unbound variable)
-PORT_VLESS=8443
-PORT_SHADOWSOCKS=9443
-PORT_AMNEZIAWG=51820
-UUID=""
-PRIVATE_KEY=""
-PUBLIC_KEY=""
-SHORT_ID=""
-SERVER_NAME="www.google.com"
-SNI="www.google.com"
-EXTERNAL_IP=""
-PASSWORD_SS=""
-WG_SERVER_PRIVATE_KEY=""
-WG_SERVER_PUBLIC_KEY=""
-WG_CLIENT_PRIVATE_KEY=""
-WG_CLIENT_PUBLIC_KEY=""
-WG_PASSWORD=""
-WG_JC=0
-WG_JMIN=0
-WG_JMAX=0
-WG_S1=0
-WG_S2=0
-WG_H1=0
-WG_H2=0
-WG_H3=0
-WG_H4=0
+export PORT_VLESS=8443
+export PORT_SHADOWSOCKS=9443
+export PORT_AMNEZIAWG=51820
+export UUID=""
+export PRIVATE_KEY=""
+export PUBLIC_KEY=""
+export SHORT_ID=""
+export SERVER_NAME="www.google.com"
+export SNI="www.google.com"
+export EXTERNAL_IP=""
+export PASSWORD_SS=""
+export WG_SERVER_PRIVATE_KEY=""
+export WG_SERVER_PUBLIC_KEY=""
+export WG_CLIENT_PRIVATE_KEY=""
+export WG_CLIENT_PUBLIC_KEY=""
+export WG_PASSWORD=""
+export WG_JC=0
+export WG_JMIN=0
+export WG_JMAX=0
+export WG_S1=0
+export WG_S2=0
+export WG_H1=0
+export WG_H2=0
+export WG_H3=0
+export WG_H4=0
 
 # Главная функция
 main() {
@@ -114,6 +114,7 @@ check_dependencies() {
     check_dependency "curl" "curl"
     check_dependency "qrencode" "qrencode"
     check_dependency "ufw" "ufw"
+    check_dependency "envsubst" "gettext-base"
 
     # Проверка WireGuard tools
     if ! command -v wg &> /dev/null; then
@@ -472,14 +473,19 @@ show_connection_info() {
     
     # Вывод AmneziaWG конфига
     echo -e "${BLUE}AmneziaWG конфиг:${NC}"
-    local amnezia_config=$(cat amnezia_client.conf)
-    echo "$amnezia_config"
-    echo ""
-    
-    log_info "Подключение к сервисам должно быть доступно в течение 30 секунд"
-    
-    # Создание файла с инструкциями и ссылками
-    create_connection_guide "$EXTERNAL_IP" "$vless_link" "$ss_link" "$amnezia_config"
+    local amnezia_config_file="$SCRIPT_DIR/../amnezia_client.conf"
+    if [[ -f "$amnezia_config_file" ]]; then
+        local amnezia_config=$(cat "$amnezia_config_file")
+        echo "$amnezia_config"
+        echo ""
+        
+        log_info "Подключение к сервисам должно быть доступно в течение 30 секунд"
+        
+        # Создание файла с инструкциями и ссылками
+        create_connection_guide "$EXTERNAL_IP" "$vless_link" "$ss_link" "$amnezia_config"
+    else
+        log_error "Файл конфигурации AmneziaWG не найден: $amnezia_config_file"
+    fi
 }
 
 # Создание файла с инструкциями и ссылками для подключения
@@ -489,10 +495,10 @@ create_connection_guide() {
     local ss_link=$3
     local amnezia_config=$4
     
-    local guide_file="connection_guide.txt"
+    local guide_file="$SCRIPT_DIR/../connection_guide.txt"
     
     # Создаем файл построчно, чтобы избежать проблем с экранированием
-    > "$guide_file" cat << EOF
+    cat > "$guide_file" << EOF
 ИНСТРУКЦИЯ ПО ПОДКЛЮЧЕНИЮ К VPN-СЕРВЕРУ
 ===================================
 
