@@ -23,6 +23,33 @@ readonly ENV_TEMPLATE="${SCRIPT_DIR}/../.env.template"
 readonly LOG_FILE="${SCRIPT_DIR}/../setup.log"
 readonly BACKUP_DIR="${SCRIPT_DIR}/../backups"
 
+# Значения по умолчанию (инициализируем переменные, чтобы избежать unbound variable)
+PORT_VLESS=8443
+PORT_SHADOWSOCKS=9443
+PORT_AMNEZIAWG=51820
+UUID=""
+PRIVATE_KEY=""
+PUBLIC_KEY=""
+SHORT_ID=""
+SERVER_NAME="www.google.com"
+SNI="www.google.com"
+EXTERNAL_IP=""
+PASSWORD_SS=""
+WG_SERVER_PRIVATE_KEY=""
+WG_SERVER_PUBLIC_KEY=""
+WG_CLIENT_PRIVATE_KEY=""
+WG_CLIENT_PUBLIC_KEY=""
+WG_PASSWORD=""
+WG_JC=0
+WG_JMIN=0
+WG_JMAX=0
+WG_S1=0
+WG_S2=0
+WG_H1=0
+WG_H2=0
+WG_H3=0
+WG_H4=0
+
 # Главная функция
 main() {
     log_info "=== grandFW Setup v${VERSION} ==="
@@ -54,6 +81,8 @@ main() {
     else
         log_info "Файл .env не найден, создаю новую конфигурацию"
         initialize_config
+        # Загружаем переменные сразу после инициализации
+        load_env_safe "$ENV_FILE"
     fi
 
     # Создание конфигурационных файлов

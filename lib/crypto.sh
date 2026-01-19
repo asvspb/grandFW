@@ -7,7 +7,7 @@
 readonly LIB_CRYPTO_VERSION="3.0.0"
 
 # Загрузка зависимостей
-if [[ -z "${LIB_COMMON_VERSION}" ]]; then
+if [[ -z "${LIB_COMMON_VERSION:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     source "${SCRIPT_DIR}/common.sh"
 fi
@@ -224,6 +224,11 @@ generate_all_secrets() {
 
     export WG_JC WG_JMIN WG_JMAX WG_S1 WG_S2 WG_H1 WG_H2 WG_H3 WG_H4
     log_debug "AmneziaWG параметры обфускации сгенерированы"
+
+    # Установка портов по умолчанию, если они не заданы
+    export PORT_VLESS="${PORT_VLESS:-8443}"
+    export PORT_SHADOWSOCKS="${PORT_SHADOWSOCKS:-9443}"
+    export PORT_AMNEZIAWG="${PORT_AMNEZIAWG:-51820}"
 
     log_info "Все криптографические параметры успешно сгенерированы ✓"
     return 0
