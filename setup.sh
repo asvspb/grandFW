@@ -42,12 +42,38 @@ check_dependency() {
     local cmd=$1
     local package=$2
     
-    if ! command -v "$cmd" &> /dev/null; then
-        log_error "$cmd не найден. Устанавливаю $package..."
-        apt-get update
-        apt-get install -y "$package"
+    if [[ "$cmd" == "wg" ]]; then
+        # Для WireGuard проверяем наличие утилиты wg
+        if ! command -v "$cmd" &> /dev/null; then
+            log_error "$cmd не найден. Устанавливаю $package..."
+            apt-get update
+            apt-get install -y "$package"
+        else
+            log_info "$cmd найден"
+        fi
+    elif [[ "$cmd" == "docker" ]]; then
+        # Для Docker проверяем наличие и работоспособность
+        if ! command -v "$cmd" &> /dev/null; then
+            log_error "$cmd не найден. Устанавливаю $package..."
+            apt-get update
+            apt-get install -y "$package"
+        else
+            log_info "$cmd найден"
+        fi
+        
+        # Также проверяем, что Docker daemon запущен
+        if ! systemctl is-active --quiet docker; then
+            log_info "Docker daemon не запущен, запускаю..."
+            systemctl start docker
+        fi
     else
-        log_info "$cmd найден"
+        if ! command -v "$cmd" &> /dev/null; then
+            log_error "$cmd не найден. Устанавливаю $package..."
+            apt-get update
+            apt-get install -y "$package"
+        else
+            log_info "$cmd найден"
+        fi
     fi
 }
 
@@ -105,6 +131,30 @@ generate_secrets() {
             log_info "Создан .env файл из шаблона"
         else
             log_warn ".env.template не найден, создаю новый .env файл"
+            
+            # Проверяем наличие образа amnezia-vpn/amnezia-wg, если нет - скачиваем
+            if ! docker image inspect amnezia-vpn/amnezia-wg &>/dev/null; then
+                log_info "Скачиваю Docker образ amnezia-vpn/amnezia-wg..."
+                docker pull amnezia-vpn/amnezia-wg
+            fi
+            
+            # Генерируем ключи для AmneziaWG (используем docker, чтобы не ставить утилиты на хост)
+            CLIENT_PRIV_KEY=$(docker run --rm amnezia-vpn/amnezia-wg wg genkey)
+            CLIENT_PUB_KEY=$(echo "$CLIENT_PRIV_KEY" | docker run --rm -i amnezia-vpn/amnezia-wg wg pubkey)
+            SERVER_PRIV_KEY=$(docker run --rm amnezia-vpn/amnezia-wg wg genkey)
+            SERVER_PUB_KEY=$(echo "$SERVER_PRIV_KEY" | docker run --rm -i amnezia-vpn/amnezia-wg wg pubkey)
+
+            # Генерируем случайные числа для обфускации (вместо диапазонов)
+            JC=$(shuf -i 3-10 -n 1)
+            JMIN=$(shuf -i 50-100 -n 1)
+            JMAX=$(shuf -i 1000-1200 -n 1)
+            S1=$(shuf -i 15-100 -n 1)
+            S2=$(shuf -i 100-200 -n 1)
+            H1=$(shuf -i 500-1000 -n 1)
+            H2=$(shuf -i 1000-2000 -n 1)
+            H3=$(shuf -i 1500-2500 -n 1)
+            H4=$(shuf -i 2000-3000 -n 1)
+
             cat > .env << EOF
 # Конфигурация VPN-сервера
 UUID=$(openssl rand -hex 16)
@@ -118,9 +168,22 @@ PORT_VLESS=8443
 PORT_SHADOWSOCKS=8443
 PORT_AMNEZIAWG=51820
 PASSWORD_SS=$(openssl rand -base64 32)
-WG_PRIVATE_KEY=$(wg genkey)
-WG_PUBLIC_KEY=$(echo "$WG_PRIVATE_KEY" | wg pubkey)
+
+# AmneziaWG параметры
+WG_CLIENT_PRIVATE_KEY=$CLIENT_PRIV_KEY
+WG_SERVER_PRIVATE_KEY=$SERVER_PRIV_KEY
+WG_CLIENT_PUBLIC_KEY=$CLIENT_PUB_KEY
+WG_SERVER_PUBLIC_KEY=$SERVER_PUB_KEY
 WG_PASSWORD=$(openssl rand -hex 16)
+WG_JC=$JC
+WG_JMIN=$JMIN
+WG_JMAX=$JMAX
+WG_S1=$S1
+WG_S2=$S2
+WG_H1=$H1
+WG_H2=$H2
+WG_H3=$H3
+WG_H4=$H4
 EOF
             log_info "Создан .env файл с новыми секретами"
         fi
@@ -202,32 +265,6 @@ EOF
     else
         log_info "Шаблон конфигурации Xray уже существует, пропускаем создание"
     fi
-    
-    # Создание шаблона конфигурации AmneziaWG, если он не существует
-    if [[ ! -f configs/amnezia.conf.template ]]; then
-        cat > configs/amnezia.conf.template << 'EOF'
-[Interface]
-PrivateKey = ${WG_PRIVATE_KEY}
-Address = 10.8.0.1/24
-MTU = 1420
-Jc = 5-10
-Jmin = 100
-Jmax = 1000
-S1 = 10-20
-S2 = 100-200
-H1 = 500-1000
-H2 = 1000-2000
-H3 = 1500-2500
-H4 = 2000-3000
-[Peer]
-PublicKey = ${WG_PUBLIC_KEY}
-AllowedIPs = 10.8.0.2/32
-PresharedKey = ${WG_PASSWORD}
-EOF
-        log_info "Создан шаблон конфигурации AmneziaWG"
-    else
-        log_info "Шаблон конфигурации AmneziaWG уже существует, пропускаем создание"
-    fi
 }
 
 # Создание docker-compose.yml (только если файл не существует)
@@ -236,7 +273,7 @@ create_docker_compose() {
         log_info "Создание docker-compose.yml..."
         
         cat > docker-compose.yml << 'EOF'
-        services:
+services:
   xray:
     image: teddysun/xray
     container_name: xray-core
@@ -260,7 +297,7 @@ create_docker_compose() {
     ports:
       - "${PORT_AMNEZIAWG}:${PORT_AMNEZIAWG}/udp"
     volumes:
-      - ./amnezia_wg.conf:/config/wg0.conf:ro
+      - ./amnezia_server.conf:/config/wg0.conf:ro
     cap_add:
       - NET_ADMIN
       - NET_RAW
@@ -292,12 +329,53 @@ prepare_configs() {
         exit 1
     fi
     
-    if [[ -f configs/amnezia.conf.template ]]; then
-        envsubst < configs/amnezia.conf.template > amnezia_wg.conf
-    else
-        log_error "Шаблон конфигурации AmneziaWG не найден: configs/amnezia.conf.template"
-        exit 1
-    fi
+    # Создание конфигов для AmneziaWG
+    # Клиентский конфиг (для импорта в приложение)
+    cat > amnezia_client.conf << EOF
+[Interface]
+PrivateKey = $WG_CLIENT_PRIVATE_KEY
+Address = 10.8.0.2/32
+DNS = 8.8.8.8, 1.1.1.1
+MTU = 1420
+Jc = $WG_JC
+Jmin = $WG_JMIN
+Jmax = $WG_JMAX
+S1 = $WG_S1
+S2 = $WG_S2
+H1 = $WG_H1
+H2 = $WG_H2
+H3 = $WG_H3
+H4 = $WG_H4
+
+[Peer]
+PublicKey = $WG_SERVER_PUBLIC_KEY
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = \$(curl -s https://api.ipify.org):${PORT_AMNEZIAWG}
+PersistentKeepalive = 25
+PresharedKey = $WG_PASSWORD
+EOF
+    
+    # Серверный конфиг (для Docker контейнера)
+    cat > amnezia_server.conf << EOF
+[Interface]
+PrivateKey = $WG_SERVER_PRIVATE_KEY
+Address = 10.8.0.1/24
+MTU = 1420
+Jc = $WG_JC
+Jmin = $WG_JMIN
+Jmax = $WG_JMAX
+S1 = $WG_S1
+S2 = $WG_S2
+H1 = $WG_H1
+H2 = $WG_H2
+H3 = $WG_H3
+H4 = $WG_H4
+
+[Peer]
+PublicKey = $WG_CLIENT_PUBLIC_KEY
+AllowedIPs = 10.8.0.2/32
+PresharedKey = $WG_PASSWORD
+EOF
     
     log_info "Конфигурационные файлы подготовлены"
 }
@@ -378,26 +456,7 @@ show_connection_info() {
     
     # Вывод AmneziaWG конфига
     echo -e "${BLUE}AmneziaWG конфиг:${NC}"
-    local amnezia_config="[Interface]
-PrivateKey = ${WG_PRIVATE_KEY}
-Address = 10.8.0.2/32
-DNS = 8.8.8.8, 1.1.1.1
-MTU = 1420
-Jc = 5-10
-Jmin = 100
-Jmax = 1000
-S1 = 10-20
-S2 = 100-200
-H1 = 500-1000
-H2 = 1000-2000
-H3 = 1500-2500
-H4 = 2000-3000
-[Peer]
-PublicKey = ${WG_PUBLIC_KEY}
-AllowedIPs = 0.0.0.0/0, ::/0
-Endpoint = ${ip}:${PORT_AMNEZIAWG}
-PersistentKeepalive = 25
-PresharedKey = ${WG_PASSWORD}"
+    local amnezia_config=$(cat amnezia_client.conf)
     echo "$amnezia_config"
     echo ""
     
@@ -500,9 +559,12 @@ health_check() {
     echo "$containers_status"
     
     # Проверка, запущены ли контейнеры
-    if [[ $(docker compose ps -q --filter "status=running" | wc -l) -eq 0 ]]; then
+    local running_containers=$(docker compose ps -q --filter "status=running" | wc -l)
+    if [[ $running_containers -eq 0 ]]; then
         log_error "Нет запущенных контейнеров"
         return 1
+    elif [[ $running_containers -lt 2 ]]; then
+        log_warn "Не все контейнеры запущены. Работает только $running_containers из 2"
     fi
     
     log_info "Сервисы работают корректно"
@@ -521,6 +583,7 @@ main() {
     check_dependency openssl openssl
     check_dependency wg wireguard-tools
     check_dependency envsubst gettext-base
+    check_dependency shuf coreutils
     check_qr_dependency
     
     # Проверка занятости порта 8443
