@@ -9,10 +9,10 @@ readonly VERSION="3.0.0"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Загрузка библиотек
-source "${SCRIPT_DIR}/lib/common.sh"
-source "${SCRIPT_DIR}/lib/validation.sh"
-source "${SCRIPT_DIR}/lib/env_loader.sh"
-source "${SCRIPT_DIR}/lib/docker.sh"
+source "${SCRIPT_DIR}/../lib/common.sh"
+source "${SCRIPT_DIR}/../lib/validation.sh"
+source "${SCRIPT_DIR}/../lib/env_loader.sh"
+source "${SCRIPT_DIR}/../lib/docker.sh"
 
 # Основная функция проверки
 main() {
