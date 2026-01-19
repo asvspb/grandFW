@@ -4,28 +4,57 @@
 
 set -euo pipefail
 
-# Цвета для вывода
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Версия скрипта
+readonly VERSION="3.0.0"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Функция для логирования
-log() {
-    echo -e "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
-}
+# Загрузка библиотек
+source "${SCRIPT_DIR}/lib/common.sh"
+source "${SCRIPT_DIR}/lib/validation.sh"
+source "${SCRIPT_DIR}/lib/env_loader.sh"
+source "${SCRIPT_DIR}/lib/docker.sh"
 
-log_info() {
-    log "${GREEN}INFO${NC}: $1"
-}
-
-log_warn() {
-    log "${YELLOW}WARN${NC}: $1"
-}
-
-log_error() {
-    log "${RED}ERROR${NC}: $1"
+# Основная функция проверки
+main() {
+    log_info "Начало проверки работоспособности VPN-сервера v${VERSION}"
+    
+    local checks_passed=0
+    local total_checks=6
+    
+    if check_docker_running; then
+        ((checks_passed++))
+    fi
+    
+    if check_containers_running; then
+        ((checks_passed++))
+    fi
+    
+    if check_ports_open; then
+        ((checks_passed++))
+    fi
+    
+    if check_config_files; then
+        ((checks_passed++))
+    fi
+    
+    if check_env_file; then
+        ((checks_passed++))
+    fi
+    
+    # Проверка, что все основные службы работают
+    if check_services_respond; then
+        ((checks_passed++))
+    fi
+    
+    log_info "Проверка завершена: $checks_passed/$total_checks тестов пройдено"
+    
+    if [[ $checks_passed -eq $total_checks ]]; then
+        log_info "VPN-сервер работает корректно"
+        exit 0
+    else
+        log_error "Обнаружены проблемы с VPN-сервером"
+        exit 1
+    fi
 }
 
 # Проверка, запущен ли Docker
@@ -61,7 +90,7 @@ check_containers_running() {
     
     # Проверяем, запущены ли контейнеры
     local running_containers=$(docker compose ps -q --filter "status=running" | wc -l)
-    local total_containers=$(docker compose config --services | wc -l)
+    local total_containers=$(docker compose config --services | wc -l 2>/dev/null || echo 2)
     
     if [[ $running_containers -eq 0 ]]; then
         log_error "Нет запущенных контейнеров"
@@ -78,13 +107,13 @@ check_containers_running() {
 check_ports_open() {
     log_info "Проверка открытых портов..."
     
-    # Загружаем переменные из .env
+    # Загружаем переменные из .env безопасно
     if [[ -f .env ]]; then
-        export $(grep -v '^#' .env | xargs)
+        load_env_safe .env
     else
         log_warn "Файл .env не найден, используем значения по умолчанию"
         export PORT_VLESS=8443
-        export PORT_SHADOWSOCKS=8443
+        export PORT_SHADOWSOCKS=9443
         export PORT_AMNEZIAWG=51820
     fi
     
@@ -174,8 +203,8 @@ check_env_file() {
         return 1
     fi
     
-    # Загружаем переменные из .env
-    export $(grep -v '^#' .env | xargs)
+    # Загружаем переменные из .env безопасно
+    load_env_safe .env
     
     # Проверяем, что все критические переменные определены
     local critical_vars=("UUID" "PRIVATE_KEY" "PUBLIC_KEY" "SHORT_ID" 
@@ -198,57 +227,65 @@ check_env_file() {
     else
         log_info "Все критические переменные в .env определены"
     fi
+    
+    # Дополнительно проверим валидность ключевых параметров
+    if [[ -n "${UUID:-}" ]]; then
+        validate_uuid "$UUID" || {
+            log_error "Невалидный UUID в .env"
+            return 1
+        }
+    fi
+    
+    if [[ -n "${PORT_VLESS:-}" ]]; then
+        validate_port "$PORT_VLESS" "PORT_VLESS" || {
+            log_error "Невалидный PORT_VLESS в .env"
+            return 1
+        }
+    fi
+    
+    if [[ -n "${PORT_SHADOWSOCKS:-}" ]]; then
+        validate_port "$PORT_SHADOWSOCKS" "PORT_SHADOWSOCKS" || {
+            log_error "Невалидный PORT_SHADOWSOCKS в .env"
+            return 1
+        }
+    fi
+    
+    if [[ -n "${PORT_AMNEZIAWG:-}" ]]; then
+        validate_port "$PORT_AMNEZIAWG" "PORT_AMNEZIAWG" || {
+            log_error "Невалидный PORT_AMNEZIAWG в .env"
+            return 1
+        }
+    fi
 }
 
-# Основная функция проверки
-main() {
-    log_info "Начало проверки работоспособности VPN-сервера"
+# Проверка, что службы отвечают
+check_services_respond() {
+    log_info "Проверка отклика служб..."
     
-    local checks_passed=0
-    local total_checks=6
+    local services_ok=true
     
-    if check_docker_running; then
-        ((checks_passed++))
-    fi
-    
-    if check_containers_running; then
-        ((checks_passed++))
-    fi
-    
-    if check_ports_open; then
-        ((checks_passed++))
-    fi
-    
-    if check_config_files; then
-        ((checks_passed++))
-    fi
-    
-    if check_env_file; then
-        ((checks_passed++))
-    fi
-    
-    # Проверка, что все основные службы работают
-    if docker compose ps --services | while read -r service; do
-        if [[ -n "$service" ]]; then
-            if docker compose exec "$service" ps aux >/dev/null 2>&1; then
-                log_info "Служба $service отвечает"
-            else
-                log_warn "Служба $service не отвечает"
-                continue
+    # Получаем список сервисов
+    if docker compose ps --services >/dev/null 2>&1; then
+        while read -r service; do
+            if [[ -n "$service" ]]; then
+                # Пропускаем сервисы, которые не предназначены для выполнения команд
+                if [[ "$service" != *"amnezia"* ]]; then
+                    if docker compose exec "$service" ps aux >/dev/null 2>&1; then
+                        log_info "Служба $service отвечает"
+                    else
+                        log_warn "Служба $service не отвечает"
+                        services_ok=false
+                    fi
+                fi
             fi
-        fi
-    done; then
-        ((checks_passed++))
+        done < <(docker compose ps --services 2>/dev/null || echo "")
+    else
+        log_warn "Не удалось получить список сервисов"
+        services_ok=false
     fi
     
-    log_info "Проверка завершена: $checks_passed/$total_checks тестов пройдено"
-    
-    if [[ $checks_passed -eq $total_checks ]]; then
-        log_info "VPN-сервер работает корректно"
-        exit 0
-    else
-        log_error "Обнаружены проблемы с VPN-сервером"
-        exit 1
+    if [[ "$services_ok" == false ]]; then
+        return 1
     fi
 }
 

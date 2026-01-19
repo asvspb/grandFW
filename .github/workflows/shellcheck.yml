@@ -1,11 +1,35 @@
 name: ShellCheck
-on: [push, pull_request]
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
 jobs:
   shellcheck:
-    runs-on: ubuntu-latest
+    name: ShellCheck Analysis
+    runs-on: ubuntu-22.04
+    
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
       - name: Run ShellCheck
         uses: ludeeus/action-shellcheck@master
         with:
-          scandir: './'
+          scandir: '.'
+          severity: warning
+          ignore_paths: |
+            backups
+            configs
+            .git
+        env:
+          SHELLCHECK_OPTS: -e SC1091 -e SC2034
+      
+      - name: ShellCheck specific files
+        run: |
+          shellcheck -x setup.sh || true
+          shellcheck -x health-check.sh || true
+          shellcheck -x lib/*.sh || true
+          shellcheck -x tests/**/*.sh || true

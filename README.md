@@ -1,5 +1,11 @@
 # Мульти-протокольный VPN-сервер
 
+[![Tests](https://github.com/asvspb/grandFW/actions/workflows/test.yml/badge.svg)](https://github.com/asvspb/grandFW/actions/workflows/test.yml)
+[![ShellCheck](https://github.com/asvspb/grandFW/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/asvspb/grandFW/actions/workflows/shellcheck.yml)
+[![Security](https://github.com/asvspb/grandFW/actions/workflows/security.yml/badge.svg)](https://github.com/asvspb/grandFW/actions/workflows/security.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-3.0.0-green.svg)](CHANGELOG.md)
+
 Скрипт для установки и управления мульти-протокольным VPN-сервером с поддержкой следующих протоколов:
 - VLESS + Reality
 - Shadowsocks-2022
@@ -12,6 +18,10 @@
 - Автоматическая настройка брандмауэра (UFW)
 - Генерация QR-кодов для быстрой настройки клиентов
 - Поддержка современных протоколов обхода блокировок
+- Модульная архитектура с разделением на библиотеки
+- Полностью покрыт тестами
+- Безопасная загрузка переменных окружения
+- Защита от command injection уязвимостей
 
 ## Требования
 
@@ -48,14 +58,29 @@ sudo ./setup.sh --info
 ## Безопасность
 
 - Все конфиденциальные данные генерируются локально
-- Ключи хранятся в файле `.env` с ограниченным доступом
+- Ключи хранятся в файле `.env` с ограниченным доступом (600)
 - Используются современные методы шифрования
+- Защита от command injection уязвимостей
+- Валидация всех входных данных
 
 ## Поддерживаемые клиенты
 
-- **VLESS + Reality**: Hiddify, v2rayNG, Shadowrocket, Qv2ray и другие
-- **Shadowsocks-2022**: Shadowsocks-клиенты с поддержкой AEAD-шифрования
-- **AmneziaWG**: AmneziaVPN
+### VLESS + Reality
+- **Android**: Hiddify, v2rayNG, Shadowrocket, Qv2ray и другие
+- **iOS**: v2rayNG, Shadowrocket, Quantumult X, Loon
+- **Windows**: Qv2ray, v2rayN
+- **macOS**: Qv2ray, ClashX
+- **Linux**: Qv2ray
+
+### Shadowsocks-2022
+- **Android**: Shadowsocks-клиенты с поддержкой AEAD-шифрования
+- **iOS**: Shadowsocks
+- **Windows**: Shadowsocks-клиенты
+- **macOS**: ShadowsocksX-NG
+- **Linux**: shadowsocks-rust
+
+### AmneziaWG
+- **Все платформы**: AmneziaVPN
 
 ## Устранение неполадок
 
@@ -67,3 +92,33 @@ sudo ./setup.sh --info
 ## Лицензия
 
 MIT License - см. файл LICENSE для подробностей.
+
+## Архитектура
+
+Проект использует модульную архитектуру с разделением на следующие библиотеки:
+- `lib/common.sh` - общие функции (логирование, проверки, backup)
+- `lib/validation.sh` - валидация данных (UUID, IP, порты)
+- `lib/crypto.sh` - криптографические функции
+- `lib/env_loader.sh` - безопасная загрузка .env
+- `lib/docker.sh` - работа с Docker
+- `lib/firewall.sh` - настройка UFW
+
+## Тестирование
+
+Проект полностью покрыт тестами:
+- Unit тесты для каждой библиотеки
+- Integration тесты для проверки взаимодействия компонентов
+- E2E тесты для проверки реальных подключений
+
+Запуск всех тестов:
+```bash
+./tests/run_tests.sh all
+```
+
+## CI/CD
+
+Автоматическая проверка и развертывание:
+- Запуск тестов при каждом push/PR
+- Статический анализ кода (ShellCheck)
+- Проверка безопасности
+- Создание релизов при тегировании

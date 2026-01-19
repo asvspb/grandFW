@@ -1,0 +1,101 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            openssl \
+            curl \
+            wireguard-tools \
+            uuid-runtime \
+            netcat
+      
+      - name: Create lib directory
+        run: mkdir -p lib
+      
+      - name: Run unit tests
+        run: |
+          chmod +x tests/run_tests.sh
+          chmod +x tests/unit/*.sh
+          ./tests/run_tests.sh unit
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: tests/unit/*.log
+          if-no-files-found: ignore
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-22.04
+    needs: unit-tests
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            openssl \
+            curl \
+            wireguard-tools \
+            uuid-runtime \
+            docker.io \
+            docker-compose
+      
+      - name: Start Docker service
+        run: |
+          sudo systemctl start docker
+          sudo systemctl enable docker
+          sudo usermod -aG docker $USER
+      
+      - name: Run integration tests
+        run: |
+          chmod +x tests/run_tests.sh
+          chmod +x tests/integration/*.sh
+          ./tests/run_tests.sh integration
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: tests/integration/*.log
+          if-no-files-found: ignore
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-22.04
+    needs: [unit-tests, integration-tests]
+    if: always()
+    
+    steps:
+      - name: Check test results
+        run: |
+          if [ "${{ needs.unit-tests.result }}" == "success" ] && \
+             [ "${{ needs.integration-tests.result }}" == "success" ]; then
+            echo "✓ All tests passed!"
+            exit 0
+          else
+            echo "✗ Some tests failed"
+            exit 1
+          fi
