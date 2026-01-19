@@ -18,10 +18,10 @@ source "${SCRIPT_DIR}/../lib/docker.sh"
 source "${SCRIPT_DIR}/../lib/firewall.sh"
 
 # Глобальные переменные
-readonly ENV_FILE="${SCRIPT_DIR}/.env"
-readonly ENV_TEMPLATE="${SCRIPT_DIR}/.env.template"
-readonly LOG_FILE="${SCRIPT_DIR}/setup.log"
-readonly BACKUP_DIR="${SCRIPT_DIR}/backups"
+readonly ENV_FILE="${SCRIPT_DIR}/../.env"
+readonly ENV_TEMPLATE="${SCRIPT_DIR}/../.env.template"
+readonly LOG_FILE="${SCRIPT_DIR}/../setup.log"
+readonly BACKUP_DIR="${SCRIPT_DIR}/../backups"
 
 # Главная функция
 main() {
