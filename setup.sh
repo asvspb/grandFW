@@ -51,6 +51,14 @@ check_dependency() {
     fi
 }
 
+# Проверка зависимости для QR-кодов
+check_qr_dependency() {
+    if ! command -v qrencode &> /dev/null; then
+        echo -e "📦 Устанавливаю qrencode для генерации QR-кодов..."
+        apt-get update && apt-get install -y qrencode
+    fi
+}
+
 # Установка Docker и Docker Compose
 install_docker() {
     log_info "Установка Docker и Docker Compose..."
@@ -331,6 +339,23 @@ start_services() {
     log_info "Сервисы запущены"
 }
 
+# Функция для отображения QR-кода
+print_qr() {
+    local name="$1"
+    local link="$2"
+    
+    echo -e "\n========================================================"
+    echo -e "   📱 QR-код для: \033[1;32m$name\033[0m"
+    echo -e "   (Сканируйте приложением Hiddify / v2rayNG / Streisand)"
+    echo -e "========================================================"
+    
+    # -t ansiutf8 позволяет рисовать QR прямо в терминале
+    qrencode -t ansiutf8 "$link"
+    
+    echo -e "\n⬇️  Или скопируйте ссылку ниже:"
+    echo -e "$link\n"
+}
+
 # Вывод информации для подключения
 show_connection_info() {
     log_info "Информация для подключения:"
@@ -343,17 +368,13 @@ show_connection_info() {
     local ip=$(curl -s https://api.ipify.org)
     
     # Вывод VLESS ссылки
-    echo -e "${BLUE}VLESS + Reality:${NC}"
     local vless_link="vless://${UUID}@${ip}:${PORT_VLESS}?security=reality&sni=${SNI}&fp=chrome&type=tcp&flow=xtls-rprx-vision&sid=${SHORT_ID}#$SERVER_NAME"
-    echo "$vless_link"
-    echo ""
+    print_qr "VLESS + Reality" "$vless_link"
     
     # Вывод Shadowsocks ссылки
-    echo -e "${BLUE}Shadowsocks-2022:${NC}"
     local ss_base64=$(echo -n "2022-blake3-aes-128-gcm:${PASSWORD_SS}@${ip}:${PORT_SHADOWSOCKS}" | base64 -w 0)
     local ss_link="ss://${ss_base64}#${SERVER_NAME}"
-    echo "$ss_link"
-    echo ""
+    print_qr "Shadowsocks 2022" "$ss_link"
     
     # Вывод AmneziaWG конфига
     echo -e "${BLUE}AmneziaWG конфиг:${NC}"
@@ -395,7 +416,8 @@ create_connection_guide() {
     
     local guide_file="connection_guide.txt"
     
-    cat > "$guide_file" << EOF
+    # Создаем файл построчно, чтобы избежать проблем с экранированием
+    > "$guide_file" cat << EOF
 ИНСТРУКЦИЯ ПО ПОДКЛЮЧЕНИЮ К VPN-СЕРВЕРУ
 ===================================
 
@@ -409,6 +431,11 @@ create_connection_guide() {
 
 $vless_link
 
+Или отсканируйте QR-код с помощью приложения Hiddify / v2rayNG / Streisand:
+
+Для генерации QR-кода используйте команду:
+qrencode -t ansiutf8 "$vless_link"
+
 Поддерживаемые приложения:
 - Android: v2rayNG, Hiddify
 - iOS: Shadowrocket, Quantumult X, Loon
@@ -421,6 +448,11 @@ $vless_link
 Скопируйте следующую ссылку и добавьте в приложение:
 
 $ss_link
+
+Или отсканируйте QR-код с помощью приложения Hiddify / v2rayNG / Streisand:
+
+Для генерации QR-кода используйте команду:
+qrencode -t ansiutf8 "$ss_link"
 
 Поддерживаемые приложения:
 - Android: v2rayNG, Shadowsocks
@@ -489,6 +521,7 @@ main() {
     check_dependency openssl openssl
     check_dependency wg wireguard-tools
     check_dependency envsubst gettext-base
+    check_qr_dependency
     
     # Проверка занятости порта 8443
     if lsof -Pi :8443 -sTCP:LISTEN -t >/dev/null ; then
