@@ -41,3 +41,8 @@ ehthumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Конфиденциальные файлы
+.env
+.env.local
+.env.production

@@ -25,7 +25,7 @@
         "security": "reality",
         "realitySettings": {
           "show": false,
-          "dest": "${SNI}:443",
+          "dest": "${SNI}:${PORT_VLESS}",
           "xver": 0,
           "uot": 1,
           "cipher": "none",

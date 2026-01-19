@@ -20,7 +20,7 @@ services:
     container_name: amnezia-wg
     restart: unless-stopped
     volumes:
-      - ./amnezia_wg.conf:/config/wg0.conf:ro
+      - ./amnezia_server.conf:/config/wg0.conf:ro
     cap_add:
       - NET_ADMIN
       - NET_RAW

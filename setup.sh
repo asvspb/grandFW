@@ -192,6 +192,81 @@ EOF
     # Загрузка переменных из .env
     export $(grep -v '^#' .env | xargs)
     
+    # Проверяем, есть ли в .env все необходимые переменные, и если нет - генерируем их
+    if [[ -z "${UUID:-}" ]] || [[ -z "${PRIVATE_KEY:-}" ]] || [[ -z "${PUBLIC_KEY:-}" ]] || [[ -z "${SHORT_ID:-}" ]] || [[ -z "${WG_CLIENT_PRIVATE_KEY:-}" ]] || [[ -z "${WG_SERVER_PRIVATE_KEY:-}" ]] || [[ -z "${WG_CLIENT_PUBLIC_KEY:-}" ]] || [[ -z "${WG_SERVER_PUBLIC_KEY:-}" ]]; then
+        log_warn "Обнаружены пустые значения в .env файле. Перегенерирую недостающие параметры..."
+        
+        # Проверяем наличие образа amnezia-vpn/amnezia-wg, если нет - скачиваем
+        if ! docker image inspect amnezia-vpn/amnezia-wg &>/dev/null; then
+            log_info "Скачиваю Docker образ amnezia-vpn/amnezia-wg..."
+            docker pull amnezia-vpn/amnezia-wg
+        fi
+        
+        # Сохраняем текущие значения, если они не пустые
+        CURRENT_UUID="${UUID:-$(openssl rand -hex 16)}"
+        CURRENT_VMESS_UUID="${VMESS_UUID:-$(openssl rand -hex 8)-$(openssl rand -hex 4)-$(openssl rand -hex 4)-$(openssl rand -hex 4)-$(openssl rand -hex 12)}"
+        CURRENT_PRIVATE_KEY="${PRIVATE_KEY:-$(openssl ecparam -genkey -name prime256v1 -noout | openssl ec -outform PEM | sed -n '2,$ p' | tr -d '\n')}"
+        CURRENT_PUBLIC_KEY="${PUBLIC_KEY:-$(echo "$CURRENT_PRIVATE_KEY" | openssl ec -pubout -outform PEM | sed -n '2,$ p' | tr -d '\n')}"
+        CURRENT_SHORT_ID="${SHORT_ID:-$(openssl rand -hex 8)}"
+        CURRENT_SERVER_NAME="${SERVER_NAME:-google.com}"
+        CURRENT_SNI="${SNI:-$CURRENT_SERVER_NAME}"
+        CURRENT_PORT_VLESS="${PORT_VLESS:-8443}"
+        CURRENT_PORT_SHADOWSOCKS="${PORT_SHADOWSOCKS:-8443}"
+        CURRENT_PORT_AMNEZIAWG="${PORT_AMNEZIAWG:-51820}"
+        CURRENT_PASSWORD_SS="${PASSWORD_SS:-$(openssl rand -base64 32)}"
+        
+        # Генерируем ключи для AmneziaWG, если они отсутствуют
+        CURRENT_WG_CLIENT_PRIVATE_KEY="${WG_CLIENT_PRIVATE_KEY:-$(docker run --rm amnezia-vpn/amnezia-wg wg genkey)}"
+        CURRENT_WG_SERVER_PRIVATE_KEY="${WG_SERVER_PRIVATE_KEY:-$(docker run --rm amnezia-vpn/amnezia-wg wg genkey)}"
+        CURRENT_WG_CLIENT_PUBLIC_KEY="${WG_CLIENT_PUBLIC_KEY:-$(echo "$CURRENT_WG_CLIENT_PRIVATE_KEY" | docker run --rm -i amnezia-vpn/amnezia-wg wg pubkey)}"
+        CURRENT_WG_SERVER_PUBLIC_KEY="${WG_SERVER_PUBLIC_KEY:-$(echo "$CURRENT_WG_SERVER_PRIVATE_KEY" | docker run --rm -i amnezia-vpn/amnezia-wg wg pubkey)}"
+        CURRENT_WG_PASSWORD="${WG_PASSWORD:-$(openssl rand -hex 16)}"
+        CURRENT_WG_JC="${WG_JC:-$(shuf -i 3-10 -n 1)}"
+        CURRENT_WG_JMIN="${WG_JMIN:-$(shuf -i 50-100 -n 1)}"
+        CURRENT_WG_JMAX="${WG_JMAX:-$(shuf -i 1000-1200 -n 1)}"
+        CURRENT_WG_S1="${WG_S1:-$(shuf -i 15-100 -n 1)}"
+        CURRENT_WG_S2="${WG_S2:-$(shuf -i 100-200 -n 1)}"
+        CURRENT_WG_H1="${WG_H1:-$(shuf -i 500-1000 -n 1)}"
+        CURRENT_WG_H2="${WG_H2:-$(shuf -i 1000-2000 -n 1)}"
+        CURRENT_WG_H3="${WG_H3:-$(shuf -i 1500-2500 -n 1)}"
+        CURRENT_WG_H4="${WG_H4:-$(shuf -i 2000-3000 -n 1)}"
+
+        # Обновляем .env файл с новыми значениями
+        cat > .env << EOF
+# Конфигурация VPN-сервера
+UUID=$CURRENT_UUID
+VMESS_UUID=$CURRENT_VMESS_UUID
+PRIVATE_KEY=$CURRENT_PRIVATE_KEY
+PUBLIC_KEY=$CURRENT_PUBLIC_KEY
+SHORT_ID=$CURRENT_SHORT_ID
+SERVER_NAME=$CURRENT_SERVER_NAME
+SNI=$CURRENT_SNI
+PORT_VLESS=$CURRENT_PORT_VLESS
+PORT_SHADOWSOCKS=$CURRENT_PORT_SHADOWSOCKS
+PORT_AMNEZIAWG=$CURRENT_PORT_AMNEZIAWG
+PASSWORD_SS=$CURRENT_PASSWORD_SS
+
+# AmneziaWG параметры
+WG_CLIENT_PRIVATE_KEY=$CURRENT_WG_CLIENT_PRIVATE_KEY
+WG_SERVER_PRIVATE_KEY=$CURRENT_WG_SERVER_PRIVATE_KEY
+WG_CLIENT_PUBLIC_KEY=$CURRENT_WG_CLIENT_PUBLIC_KEY
+WG_SERVER_PUBLIC_KEY=$CURRENT_WG_SERVER_PUBLIC_KEY
+WG_PASSWORD=$CURRENT_WG_PASSWORD
+WG_JC=$CURRENT_WG_JC
+WG_JMIN=$CURRENT_WG_JMIN
+WG_JMAX=$CURRENT_WG_JMAX
+WG_S1=$CURRENT_WG_S1
+WG_S2=$CURRENT_WG_S2
+WG_H1=$CURRENT_WG_H1
+WG_H2=$CURRENT_WG_H2
+WG_H3=$CURRENT_WG_H3
+WG_H4=$CURRENT_WG_H4
+EOF
+        
+        # Загружаем обновленные переменные
+        export $(grep -v '^#' .env | xargs)
+    fi
+    
     log_info "Секреты сгенерированы и загружены"
 }
 
@@ -321,6 +396,12 @@ EOF
 prepare_configs() {
     log_info "Подготовка конфигурационных файлов из шаблонов..."
     
+    # Проверяем, что все необходимые переменные определены
+    if [[ -z "${UUID:-}" ]] || [[ -z "${PRIVATE_KEY:-}" ]] || [[ -z "${PUBLIC_KEY:-}" ]] || [[ -z "${SHORT_ID:-}" ]] || [[ -z "${WG_CLIENT_PRIVATE_KEY:-}" ]] || [[ -z "${WG_SERVER_PRIVATE_KEY:-}" ]] || [[ -z "${WG_CLIENT_PUBLIC_KEY:-}" ]] || [[ -z "${WG_SERVER_PUBLIC_KEY:-}" ]] || [[ -z "${WG_PASSWORD:-}" ]] || [[ -z "${WG_JC:-}" ]] || [[ -z "${WG_JMIN:-}" ]] || [[ -z "${WG_JMAX:-}" ]] || [[ -z "${WG_S1:-}" ]] || [[ -z "${WG_S2:-}" ]] || [[ -z "${WG_H1:-}" ]] || [[ -z "${WG_H2:-}" ]] || [[ -z "${WG_H3:-}" ]] || [[ -z "${WG_H4:-}" ]]; then
+        log_error "Не все необходимые переменные определены. Пожалуйста, проверьте файл .env"
+        exit 1
+    fi
+    
     # Убедимся, что нет одноимённых директорий, которые могут помешать созданию файлов
     rm -rf xray amnezia
     mkdir -p xray amnezia
@@ -442,6 +523,12 @@ print_qr() {
 show_connection_info() {
     log_info "Информация для подключения:"
     echo ""
+    
+    # Проверяем, что все необходимые переменные определены
+    if [[ -z "${UUID:-}" ]] || [[ -z "${PRIVATE_KEY:-}" ]] || [[ -z "${PUBLIC_KEY:-}" ]] || [[ -z "${SHORT_ID:-}" ]] || [[ -z "${WG_CLIENT_PRIVATE_KEY:-}" ]] || [[ -z "${WG_SERVER_PRIVATE_KEY:-}" ]] || [[ -z "${WG_CLIENT_PUBLIC_KEY:-}" ]] || [[ -z "${WG_SERVER_PUBLIC_KEY:-}" ]] || [[ -z "${WG_PASSWORD:-}" ]] || [[ -z "${WG_JC:-}" ]] || [[ -z "${WG_JMIN:-}" ]] || [[ -z "${WG_JMAX:-}" ]] || [[ -z "${WG_S1:-}" ]] || [[ -z "${WG_S2:-}" ]] || [[ -z "${WG_H1:-}" ]] || [[ -z "${WG_H2:-}" ]] || [[ -z "${WG_H3:-}" ]] || [[ -z "${WG_H4:-}" ]]; then
+        log_error "Не все необходимые переменные определены. Пожалуйста, проверьте файл .env"
+        exit 1
+    fi
     
     # Загрузка переменных
     export $(grep -v '^#' .env | xargs)
