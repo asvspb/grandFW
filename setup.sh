@@ -132,17 +132,17 @@ generate_secrets() {
         else
             log_warn ".env.template не найден, создаю новый .env файл"
             
-            # Проверяем наличие образа amnezia-vpn/amnezia-wg, если нет - скачиваем
-            if ! docker image inspect amnezia-vpn/amnezia-wg &>/dev/null; then
-                log_info "Скачиваю Docker образ amnezia-vpn/amnezia-wg..."
-                docker pull amnezia-vpn/amnezia-wg
+            # Проверяем наличие образа ghcr.io/linuxserver/wireguard, если нет - скачиваем
+            if ! docker image inspect ghcr.io/linuxserver/wireguard &>/dev/null; then
+                log_info "Скачиваю Docker образ ghcr.io/linuxserver/wireguard..."
+                docker pull ghcr.io/linuxserver/wireguard
             fi
             
             # Генерируем ключи для AmneziaWG (используем docker, чтобы не ставить утилиты на хост)
-            CLIENT_PRIV_KEY=$(docker run --rm amnezia-vpn/amnezia-wg wg genkey)
-            CLIENT_PUB_KEY=$(echo "$CLIENT_PRIV_KEY" | docker run --rm -i amnezia-vpn/amnezia-wg wg pubkey)
-            SERVER_PRIV_KEY=$(docker run --rm amnezia-vpn/amnezia-wg wg genkey)
-            SERVER_PUB_KEY=$(echo "$SERVER_PRIV_KEY" | docker run --rm -i amnezia-vpn/amnezia-wg wg pubkey)
+            CLIENT_PRIV_KEY=$(docker run --rm ghcr.io/linuxserver/wireguard wg genkey)
+            CLIENT_PUB_KEY=$(echo "$CLIENT_PRIV_KEY" | docker run --rm -i ghcr.io/linuxserver/wireguard wg pubkey)
+            SERVER_PRIV_KEY=$(docker run --rm ghcr.io/linuxserver/wireguard wg genkey)
+            SERVER_PUB_KEY=$(echo "$SERVER_PRIV_KEY" | docker run --rm -i ghcr.io/linuxserver/wireguard wg pubkey)
 
             # Генерируем случайные числа для обфускации (вместо диапазонов)
             JC=$(shuf -i 3-10 -n 1)
@@ -196,10 +196,10 @@ EOF
     if [[ -z "${UUID:-}" ]] || [[ -z "${PRIVATE_KEY:-}" ]] || [[ -z "${PUBLIC_KEY:-}" ]] || [[ -z "${SHORT_ID:-}" ]] || [[ -z "${WG_CLIENT_PRIVATE_KEY:-}" ]] || [[ -z "${WG_SERVER_PRIVATE_KEY:-}" ]] || [[ -z "${WG_CLIENT_PUBLIC_KEY:-}" ]] || [[ -z "${WG_SERVER_PUBLIC_KEY:-}" ]]; then
         log_warn "Обнаружены пустые значения в .env файле. Перегенерирую недостающие параметры..."
         
-        # Проверяем наличие образа amnezia-vpn/amnezia-wg, если нет - скачиваем
-        if ! docker image inspect amnezia-vpn/amnezia-wg &>/dev/null; then
-            log_info "Скачиваю Docker образ amnezia-vpn/amnezia-wg..."
-            docker pull amnezia-vpn/amnezia-wg
+        # Проверяем наличие образа ghcr.io/linuxserver/wireguard, если нет - скачиваем
+        if ! docker image inspect ghcr.io/linuxserver/wireguard &>/dev/null; then
+            log_info "Скачиваю Docker образ ghcr.io/linuxserver/wireguard..."
+            docker pull ghcr.io/linuxserver/wireguard
         fi
         
         # Сохраняем текущие значения, если они не пустые
