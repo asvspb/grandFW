@@ -8,9 +8,10 @@
 # --- Generated Configuration Files ---
 # Конфиги, которые генерирует скрипт install.sh на основе шаблонов
 # Предполагаем, что шаблоны лежат в configs/, а готовые файлы создаются в корне или подпапках
-xray/config.json
-amnezia/wg_config.conf
 wireguard/
+*.conf
+*.json
+connection_guide.txt
 
 # --- Client Output ---
 # Папки или файлы, куда скрипт сохраняет ключи для пользователя
