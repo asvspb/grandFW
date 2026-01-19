@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # lib/crypto.sh - Криптографические функции для grandFW
-# Версия: 3.0.2
+# Версия: 3.0.3
 #
 
-readonly LIB_CRYPTO_VERSION="3.0.2"
+readonly LIB_CRYPTO_VERSION="3.0.3"
 
 # Загрузка зависимостей
 if [[ -z "${LIB_COMMON_VERSION:-}" ]]; then
@@ -62,7 +62,7 @@ generate_x25519_keys() {
     rm -rf "$temp_dir"
     
     if [[ ${#priv_base64} -ne 44 ]] || [[ ${#pub_base64} -ne 44 ]]; then
-        log_error "Ошибка: сгенерированные X25519 ключи имеют некорректную длину"
+        log_error "Ошибка: сгенерированные X25519 ключи имеют некорректную длину (${#priv_base64}/${#pub_base64})"
         return 1
     fi
     
@@ -103,11 +103,11 @@ generate_wg_keys() {
         return 1
     fi
 
-    local private_key=$(wg genkey)
-    local public_key=$(echo "$private_key" | wg pubkey)
+    local private_key=$(wg genkey | tr -d '[:space:]')
+    local public_key=$(echo "$private_key" | wg pubkey | tr -d '[:space:]')
 
     if [[ ${#private_key} -ne 44 ]] || [[ ${#public_key} -ne 44 ]]; then
-        log_error "Ошибка: сгенерированные WireGuard ключи имеют некорректную длину"
+        log_error "Ошибка: сгенерированные WireGuard ключи имеют некорректную длину (${#private_key}/${#public_key})"
         return 1
     fi
 
@@ -130,9 +130,9 @@ generate_wg_preshared() {
         return 1
     fi
 
-    local psk=$(wg genpsk)
+    local psk=$(wg genpsk | tr -d '[:space:]')
     if [[ ${#psk} -ne 44 ]]; then
-        log_error "Ошибка: сгенерированный WireGuard PSK имеет некорректную длину"
+        log_error "Ошибка: сгенерированный WireGuard PSK имеет некорректную длину (${#psk})"
         return 1
     fi
     echo "$psk"
