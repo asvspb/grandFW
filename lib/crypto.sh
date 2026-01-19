@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # lib/crypto.sh - Криптографические функции для grandFW
-# Версия: 3.0.0
+# Версия: 3.0.2
 #
 
-readonly LIB_CRYPTO_VERSION="3.0.0"
+readonly LIB_CRYPTO_VERSION="3.0.2"
 
 # Загрузка зависимостей
 if [[ -z "${LIB_COMMON_VERSION:-}" ]]; then
@@ -35,6 +35,7 @@ generate_uuid() {
 
 #######################################
 # Генерация X25519 ключей для Reality
+# Использует более надежный метод через DER формат
 # Outputs:
 #   Две строки: приватный ключ и публичный ключ (base64)
 # Returns:
@@ -43,40 +44,30 @@ generate_uuid() {
 #######################################
 generate_x25519_keys() {
     local temp_dir=$(mktemp -d)
-    local private_key_file="${temp_dir}/private.key"
-    local public_key_file="${temp_dir}/public.key"
-
+    local priv_key_file="${temp_dir}/priv.key"
+    
     # Генерация приватного ключа
-    if ! openssl genpkey -algorithm X25519 -out "$private_key_file" 2>/dev/null; then
-        log_error "Ошибка генерации X25519 приватного ключа"
+    if ! openssl genpkey -algorithm X25519 -out "$priv_key_file" 2>/dev/null; then
+        log_error "Ошибка генерации X25519 ключа"
         rm -rf "$temp_dir"
         return 1
     fi
-
-    # Извлечение публичного ключа
-    if ! openssl pkey -in "$private_key_file" -pubout -out "$public_key_file" 2>/dev/null; then
-        log_error "Ошибка извлечения X25519 публичного ключа"
-        rm -rf "$temp_dir"
-        return 1
-    fi
-
-    # Конвертация в base64 (одна строка)
-    local private_key=$(openssl pkey -in "$private_key_file" -text 2>/dev/null | \
-        grep -A 3 "priv:" | tail -n 3 | tr -d ' \n:' | xxd -r -p | base64)
-
-    local public_key=$(openssl pkey -in "$private_key_file" -pubout -text 2>/dev/null | \
-        grep -A 3 "pub:" | tail -n 3 | tr -d ' \n:' | xxd -r -p | base64)
-
-    # Очистка временных файлов
+    
+    # Извлечение сырого приватного ключа (последние 32 байта DER формата)
+    local priv_base64=$(openssl pkey -in "$priv_key_file" -outform DER 2>/dev/null | tail -c 32 | base64 -w 0)
+    
+    # Извлечение сырого публичного ключа (последние 32 байта DER формата)
+    local pub_base64=$(openssl pkey -in "$priv_key_file" -pubout -outform DER 2>/dev/null | tail -c 32 | base64 -w 0)
+    
     rm -rf "$temp_dir"
-
-    if [[ -z "$private_key" ]] || [[ -z "$public_key" ]]; then
-        log_error "Ошибка конвертации X25519 ключей в base64"
+    
+    if [[ ${#priv_base64} -ne 44 ]] || [[ ${#pub_base64} -ne 44 ]]; then
+        log_error "Ошибка: сгенерированные X25519 ключи имеют некорректную длину"
         return 1
     fi
-
-    echo "$private_key"
-    echo "$public_key"
+    
+    echo "$priv_base64"
+    echo "$pub_base64"
     return 0
 }
 
@@ -115,6 +106,11 @@ generate_wg_keys() {
     local private_key=$(wg genkey)
     local public_key=$(echo "$private_key" | wg pubkey)
 
+    if [[ ${#private_key} -ne 44 ]] || [[ ${#public_key} -ne 44 ]]; then
+        log_error "Ошибка: сгенерированные WireGuard ключи имеют некорректную длину"
+        return 1
+    fi
+
     echo "$private_key"
     echo "$public_key"
     return 0
@@ -134,7 +130,13 @@ generate_wg_preshared() {
         return 1
     fi
 
-    wg genpsk
+    local psk=$(wg genpsk)
+    if [[ ${#psk} -ne 44 ]]; then
+        log_error "Ошибка: сгенерированный WireGuard PSK имеет некорректную длину"
+        return 1
+    fi
+    echo "$psk"
+    return 0
 }
 
 #######################################
