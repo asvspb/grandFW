@@ -405,13 +405,13 @@ EOF
 start_services() {
     log_info "Запуск VPN-сервисов..."
     
-    docker compose up -d
+    docker_compose_up "$SCRIPT_DIR/../docker-compose.yml"
     
     # Ждем немного, чтобы контейнеры запустились
     sleep 5
     
     # Проверяем статус контейнеров
-    docker compose ps
+    docker compose -p "grandfw" ps
     
     log_info "Сервисы запущены"
 }
