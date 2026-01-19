@@ -213,15 +213,17 @@ EOF
 create_configs() {
     log_info "Проверка/создание шаблонов конфигурационных файлов..."
     
+    local config_dir="$SCRIPT_DIR/../configs"
+    
     # Удаляем одноимённые директории, если они существуют
-    rm -rf configs
+    rm -rf "$config_dir"
     
     # Создание директории configs, если не существует
-    mkdir -p configs
+    mkdir -p "$config_dir"
     
     # Создание шаблона конфигурации Xray, если он не существует
-    if [[ ! -f configs/xray.json.template ]]; then
-        cat > configs/xray.json.template << 'EOF'
+    if [[ ! -f "$config_dir/xray.json.template" ]]; then
+        cat > "$config_dir/xray.json.template" << 'EOF'
 {
   "log": {
     "loglevel": "warning"
@@ -284,10 +286,11 @@ EOF
     fi
     
     # Создание docker-compose.yml (только если файл не существует)
-    if [[ ! -f docker-compose.yml ]]; then
+    local compose_file="$SCRIPT_DIR/../docker-compose.yml"
+    if [[ ! -f "$compose_file" ]]; then
         log_info "Создание docker-compose.yml..."
         
-        cat > docker-compose.yml << 'EOF'
+        cat > "$compose_file" << 'EOF'
 services:
   xray:
     image: teddysun/xray
@@ -455,8 +458,8 @@ show_connection_info() {
         exit 1
     fi
     
-    # Загрузка переменных
-    load_env_safe .env
+    # Загрузка переменных (используем абсолютный путь)
+    load_env_safe "$ENV_FILE"
     
     # Вывод VLESS ссылки
     local vless_link="vless://${UUID}@${EXTERNAL_IP}:${PORT_VLESS}?security=reality&sni=${SNI}&fp=chrome&type=tcp&flow=xtls-rprx-vision&sid=${SHORT_ID}#$SERVER_NAME"
