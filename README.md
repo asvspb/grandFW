@@ -1,4 +1,4 @@
-# Мульти-протокольный VPN-сервер
+# grandFW - Мульти-протокольный VPN-сервер
 
 [![Tests](https://github.com/asvspb/grandFW/actions/workflows/test.yml/badge.svg)](https://github.com/asvspb/grandFW/actions/workflows/test.yml)
 [![ShellCheck](https://github.com/asvspb/grandFW/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/asvspb/grandFW/actions/workflows/shellcheck.yml)
@@ -6,96 +6,52 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-3.0.0-green.svg)](CHANGELOG.md)
 
-Скрипт для установки и управления мульти-протокольным VPN-сервером с поддержкой следующих протоколов:
+Модульная система установки и управления мульти-протокольным VPN-сервером с поддержкой следующих протоколов:
 - VLESS + Reality
 - Shadowsocks-2022
-- AmneziaWG
+- AmneziaWG (WireGuard с обфускацией)
 
 ## Особенности
 
-- Автоматическая генерация криптографических ключей и параметров
-- Поддержка Docker и Docker Compose
-- Автоматическая настройка брандмауэра (UFW)
-- Генерация QR-кодов для быстрой настройки клиентов
-- Поддержка современных протоколов обхода блокировок
-- Модульная архитектура с разделением на библиотеки
-- Полностью покрыт тестами
-- Безопасная загрузка переменных окружения
-- Защита от command injection уязвимостей
+- ✅ **Модульная архитектура** - разделение на независимые библиотеки для лучшей поддержки
+- ✅ **Автоматическая генерация криптографических параметров** - безопасная генерация ключей локально
+- ✅ **Поддержка Docker и Docker Compose** - контейнеризированное развертывание
+- ✅ **Безопасная загрузка переменных окружения** - защита от command injection уязвимостей
+- ✅ **Автоматическая настройка брандмауэра (UFW)** - безопасная конфигурация firewall
+- ✅ **Генерация QR-кодов для подключения** - быстрая настройка клиентов
+- ✅ **Полное покрытие тестами** - unit, integration и E2E тесты
+- ✅ **CI/CD интеграция** - автоматические проверки и деплои
 
 ## Требования
 
-- Ubuntu 20.04+ (или совместимая система)
-- Root права
-- Открытые порты: 8443 (TCP) и 51820 (UDP)
+- **ОС**: Ubuntu 20.04+ (или совместимая система)
+- **Права**: Root (для установки и настройки)
+- **Порты**: 8443 (TCP), 9443 (TCP/UDP), 51820 (UDP) - должны быть открыты
+- **Зависимости**: Docker, Docker Compose, WireGuard tools
 
 ## Установка
 
-1. Убедитесь, что у вас есть root права или права sudo
-2. Склонируйте репозиторий или скачайте скрипт `setup.sh`
-3. Запустите скрипт с root правами:
+1. Клонируйте репозиторий или скачайте скрипт `setup.sh`
+2. Убедитесь, что у вас есть root права
+3. Запустите скрипт установки:
 
 ```bash
 sudo ./setup.sh
 ```
 
-Скрипт автоматически:
-- Проверит и установит необходимые зависимости
-- Сгенерирует криптографические ключи
-- Создаст конфигурационные файлы
-- Настроит брандмауэр
-- Запустит VPN-сервисы
-- Покажет информацию для подключения
+### Повторный запуск
 
-## Повторный запуск
-
-Если вам нужно повторно получить информацию для подключения:
+Для получения информации о подключении без перенастройки:
 
 ```bash
-sudo ./setup.sh --info
+sudo ./setup.sh
 ```
-
-## Безопасность
-
-- Все конфиденциальные данные генерируются локально
-- Ключи хранятся в файле `.env` с ограниченным доступом (600)
-- Используются современные методы шифрования
-- Защита от command injection уязвимостей
-- Валидация всех входных данных
-
-## Поддерживаемые клиенты
-
-### VLESS + Reality
-- **Android**: Hiddify, v2rayNG, Shadowrocket, Qv2ray и другие
-- **iOS**: v2rayNG, Shadowrocket, Quantumult X, Loon
-- **Windows**: Qv2ray, v2rayN
-- **macOS**: Qv2ray, ClashX
-- **Linux**: Qv2ray
-
-### Shadowsocks-2022
-- **Android**: Shadowsocks-клиенты с поддержкой AEAD-шифрования
-- **iOS**: Shadowsocks
-- **Windows**: Shadowsocks-клиенты
-- **macOS**: ShadowsocksX-NG
-- **Linux**: shadowsocks-rust
-
-### AmneziaWG
-- **Все платформы**: AmneziaVPN
-
-## Устранение неполадок
-
-Если возникают проблемы с подключением:
-1. Проверьте, что порты открыты в брандмауэре
-2. Убедитесь, что службы запущены: `docker compose ps`
-3. Посмотрите логи: `docker compose logs xray` и `docker compose logs amnezia-wg`
-
-## Лицензия
-
-MIT License - см. файл LICENSE для подробностей.
 
 ## Архитектура
 
 Проект использует модульную архитектуру с разделением на следующие библиотеки:
+
+### Библиотеки (lib/)
 - `lib/common.sh` - общие функции (логирование, проверки, backup)
 - `lib/validation.sh` - валидация данных (UUID, IP, порты)
 - `lib/crypto.sh` - криптографические функции
@@ -103,17 +59,87 @@ MIT License - см. файл LICENSE для подробностей.
 - `lib/docker.sh` - работа с Docker
 - `lib/firewall.sh` - настройка UFW
 
+### Скрипты (scripts/)
+- `scripts/setup.sh` - основной скрипт установки
+- `scripts/health-check.sh` - проверка работоспособности
+- `scripts/update.sh` - обновление конфигураций
+- `scripts/backup.sh` - резервное копирование
+- `scripts/uninstall.sh` - удаление
+
+## Безопасность
+
+### Защита от уязвимостей
+- ✅ **Command injection защита** - безопасная загрузка .env файлов
+- ✅ **Валидация всех входных данных** - проверка параметров
+- ✅ **Ограничение прав доступа** - файл `.env` с правами 600
+- ✅ **Проверка конфликтов портов** - предотвращение конфликтов
+
+### Криптография
+- ✅ **Генерация ключей локально** - безопасная генерация без отправки данных
+- ✅ **Современные алгоритмы** - использование X25519, AES-128-GCM и т.д.
+- ✅ **Проверка валидности ключей** - контроль корректности сгенерированных данных
+
+## Поддерживаемые клиенты
+
+### VLESS + Reality
+- **Android**: Hiddify, v2rayNG, Shadowrocket, Qv2ray
+- **iOS**: v2rayNG, Shadowrocket, Quantumult X, Loon
+- **Windows**: Qv2ray, v2rayN
+- **macOS**: Qv2ray, ClashX
+- **Linux**: Qv2ray
+
+### Shadowsocks-2022
+- **Android**: Shadowsocks, v2rayNG
+- **iOS**: Shadowrocket, Shadowsocks
+- **Windows**: Shadowsocks Windows
+- **macOS**: ShadowsocksX-NG
+- **Linux**: shadowsocks-rust
+
+### AmneziaWG
+- **Все платформы**: AmneziaVPN, WireGuard clients
+
+## Устранение неполадок
+
+### Проверка состояния
+```bash
+# Состояние контейнеров
+docker compose ps
+
+# Логи Xray
+docker compose logs xray
+
+# Логи AmneziaWG
+docker compose logs amnezia-wg
+
+# Состояние firewall
+sudo ufw status
+```
+
+### Распространенные проблемы
+1. **Порт уже используется** - проверьте `sudo lsof -i :8443` и `sudo lsof -i :9443`
+2. **Docker не запущен** - `sudo systemctl start docker`
+3. **Нет доступа к .env файлу** - проверьте права: `ls -la .env`
+
+Для подробного устранения неполадок смотрите [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+
 ## Тестирование
+
+### Запуск тестов
+```bash
+# Все тесты
+./tests/run_tests.sh all
+
+# Только unit тесты
+./tests/run_tests.sh unit
+
+# Только integration тесты
+./tests/run_tests.sh integration
+```
 
 Проект полностью покрыт тестами:
 - Unit тесты для каждой библиотеки
 - Integration тесты для проверки взаимодействия компонентов
 - E2E тесты для проверки реальных подключений
-
-Запуск всех тестов:
-```bash
-./tests/run_tests.sh all
-```
 
 ## CI/CD
 
@@ -122,3 +148,7 @@ MIT License - см. файл LICENSE для подробностей.
 - Статический анализ кода (ShellCheck)
 - Проверка безопасности
 - Создание релизов при тегировании
+
+## Лицензия
+
+MIT License - см. файл [LICENSE](LICENSE) для подробностей.

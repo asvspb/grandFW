@@ -1,17 +1,23 @@
-# Примеры использования
+# Примеры использования grandFW
 
 ## Установка VPN-сервера
 
 ### Базовая установка
 
 ```bash
+# Клонирование репозитория
+git clone https://github.com/asvspb/grandFW.git
+cd grandFW
+
+# Запуск установки
 sudo ./setup.sh
 ```
 
 ### Повторный запуск для получения информации о подключении
 
 ```bash
-sudo ./setup.sh --info
+# Повторный запуск скрипта для получения информации о подключении
+sudo ./setup.sh
 ```
 
 ## Структура файлов после установки
@@ -19,18 +25,30 @@ sudo ./setup.sh --info
 После успешной установки будут созданы следующие файлы:
 
 ```
-├── .env                    # Конфиденциальные параметры
+grandFW/
+├── .env                    # Конфиденциальные параметры (600 права)
 ├── xray_config.json        # Конфигурация Xray
 ├── amnezia_client.conf     # Конфигурация клиента AmneziaWG
 ├── amnezia_server.conf     # Конфигурация сервера AmneziaWG
 ├── connection_guide.txt    # Инструкция по подключению
-└── health-check.sh         # Скрипт проверки работоспособности
+├── docker-compose.yml      # Docker Compose конфигурация
+├── configs/                # Директория с шаблонами
+│   └── xray.json.template  # Шаблон конфигурации Xray
+└── scripts/                # Скрипты управления
+    ├── health-check.sh     # Проверка работоспособности
+    ├── update.sh           # Обновление конфигурации
+    ├── backup.sh           # Резервное копирование
+    └── uninstall.sh        # Удаление
 ```
 
 ## Проверка работоспособности
 
 ```bash
-./health-check.sh
+# Запуск скрипта проверки
+sudo ./scripts/health-check.sh
+
+# Или запуск тестов
+./tests/run_tests.sh all
 ```
 
 ## Управление сервисами
@@ -38,32 +56,58 @@ sudo ./setup.sh --info
 ### Просмотр статуса контейнеров
 
 ```bash
-docker compose ps
+# Проверка статуса контейнеров
+docker compose -p grandfw ps
+
+# Проверка статуса конкретного контейнера
+docker compose -p grandfw ps xray
+docker compose -p grandfw ps amnezia-wg
 ```
 
-### Просмотр логов Xray
+### Просмотр логов
 
 ```bash
-docker compose logs xray
+# Логи Xray
+docker compose -p grandfw logs xray
+
+# Логи AmneziaWG
+docker compose -p grandfw logs amnezia-wg
+
+# Логи с отслеживанием новых записей
+docker compose -p grandfw logs -f xray
 ```
 
-### Просмотр логов AmneziaWG
+### Управление сервисами
 
 ```bash
-docker compose logs amnezia-wg
-```
+# Остановка сервисов
+docker compose -p grandfw down
 
-### Перезапуск сервисов
+# Запуск сервисов
+docker compose -p grandfw up -d
 
-```bash
-docker compose down
-docker compose up -d
+# Перезапуск сервисов
+docker compose -p grandfw restart
+
+# Перезапуск конкретного контейнера
+docker compose -p grandfw restart xray
 ```
 
 ## Порты, используемые системой
 
-- `8443/TCP` - VLESS + REALITY и Shadowsocks-2022
+- `8443/TCP` - VLESS + REALITY
+- `9443/TCP и 9443/UDP` - Shadowsocks-2022
 - `51820/UDP` - AmneziaWG (совместимый с WireGuard)
+
+### Проверка открытых портов
+
+```bash
+# Проверка состояния firewall
+sudo ufw status
+
+# Проверка прослушиваемых портов
+sudo ss -tulnp | grep -E "(8443|9443|51820)"
+```
 
 ## Файлы конфигурации
 
@@ -72,47 +116,55 @@ docker compose up -d
 Файл `.env` содержит все криптографические параметры и настройки:
 
 ```env
-UUID=...                    # UUID для VLESS
-PRIVATE_KEY=...             # Приватный ключ для REALITY
-PUBLIC_KEY=...              # Публичный ключ для REALITY
-SHORT_ID=...                # Краткий ID для REALITY
-SERVER_NAME=google.com      # Имя сервера для маскировки
-SNI=google.com              # SNI для TLS
-PORT_VLESS=8443             # Порт для VLESS
-PORT_SHADOWSOCKS=8443       # Порт для Shadowsocks
-PORT_AMNEZIAWG=51820        # Порт для AmneziaWG
-PASSWORD_SS=...             # Пароль для Shadowsocks-2022
+# Конфигурация сервера
+SERVER_NAME=www.google.com
+SNI=www.google.com
+EXTERNAL_IP=1.2.3.4
+
+# Порты
+PORT_VLESS=8443
+PORT_SHADOWSOCKS=9443
+PORT_AMNEZIAWG=51820
+
+# Параметры VLESS + Reality
+UUID=550e8400-e29b-41d4-a716-446655440000
+PRIVATE_KEY=...
+PUBLIC_KEY=...
+SHORT_ID=...
+
+# Параметры Shadowsocks-2022
+PASSWORD_SS=...
 
 # Параметры AmneziaWG
-WG_CLIENT_PRIVATE_KEY=...   # Приватный ключ клиента
-WG_SERVER_PRIVATE_KEY=...   # Приватный ключ сервера
-WG_CLIENT_PUBLIC_KEY=...    # Публичный ключ клиента
-WG_SERVER_PUBLIC_KEY=...    # Публичный ключ сервера
-WG_PASSWORD=...             # Пароль (предварительно-общий ключ)
-WG_JC=...                   # Параметр обфускации jc
-WG_JMIN=...                 # Параметр обфускации jmin
-WG_JMAX=...                 # Параметр обфускации jmax
-WG_S1=...                   # Параметр обфускации s1
-WG_S2=...                   # Параметр обфускации s2
-WG_H1=...                   # Параметр обфускации h1
-WG_H2=...                   # Параметр обфускации h2
-WG_H3=...                   # Параметр обфускации h3
-WG_H4=...                   # Параметр обфускации h4
+WG_CLIENT_PRIVATE_KEY=...
+WG_SERVER_PRIVATE_KEY=...
+WG_CLIENT_PUBLIC_KEY=...
+WG_SERVER_PUBLIC_KEY=...
+WG_PASSWORD=...
+WG_JC=...
+WG_JMIN=...
+WG_JMAX=...
+WG_S1=...
+WG_S2=...
+WG_H1=...
+WG_H2=...
+WG_H3=...
+WG_H4=...
 ```
 
 ## Поддерживаемые клиенты
 
 ### VLESS + REALITY
 
-- **Android**: v2rayNG, Hiddify
-- **iOS**: Shadowrocket, Quantumult X, Loon
+- **Android**: Hiddify, v2rayNG, Shadowrocket, Qv2ray
+- **iOS**: v2rayNG, Shadowrocket, Quantumult X, Loon
 - **Windows**: Qv2ray, v2rayN
 - **macOS**: Qv2ray, ClashX
 - **Linux**: Qv2ray
 
 ### Shadowsocks-2022
 
-- **Android**: v2rayNG, Shadowsocks
+- **Android**: Shadowsocks, v2rayNG
 - **iOS**: Shadowrocket, Shadowsocks
 - **Windows**: Shadowsocks Windows
 - **macOS**: ShadowsocksX-NG
@@ -121,6 +173,72 @@ WG_H4=...                   # Параметр обфускации h4
 ### AmneziaWG
 
 - **Все платформы**: AmneziaVPN (https://amnezia.org/)
+
+## Работа с библиотеками
+
+### Пример использования библиотек в скриптах
+
+```bash
+#!/usr/bin/env bash
+# Пример использования библиотек
+
+# Загрузка библиотек
+source lib/common.sh
+source lib/validation.sh
+source lib/crypto.sh
+source lib/env_loader.sh
+source lib/docker.sh
+source lib/firewall.sh
+
+# Пример использования функций
+log_info "Начало работы скрипта"
+
+# Проверка порта
+validate_port "8443" "VLESS_PORT"
+
+# Генерация UUID
+local uuid=$(generate_uuid)
+validate_uuid "$uuid"
+
+# Загрузка конфигурации
+load_env_safe .env
+
+# Проверка Docker
+check_docker_running
+
+# Проверка firewall
+sudo ufw status
+```
+
+## Управление конфигурациями
+
+### Обновление конфигураций
+
+```bash
+# Запуск скрипта обновления
+sudo ./scripts/update.sh
+```
+
+### Резервное копирование
+
+```bash
+# Создание резервной копии
+sudo ./scripts/backup.sh
+
+# Или вручную
+tar -czf vpn-backup-$(date +%F).tar.gz .env connection_guide.txt configs/ docker-compose.yml
+```
+
+### Удаление
+
+```bash
+# Полное удаление
+sudo ./scripts/uninstall.sh
+
+# Или вручную
+docker compose -p grandfw down -v
+sudo rm -rf .env xray_config.json amnezia_*.conf connection_guide.txt configs/
+```
 
 ## Устранение неполадок
 
@@ -135,14 +253,14 @@ sudo ufw status
 2. **Убедитесь, что службы запущены**:
 
 ```bash
-docker compose ps
+docker compose -p grandfw ps
 ```
 
 3. **Посмотрите логи контейнеров**:
 
 ```bash
-docker compose logs xray
-docker compose logs amnezia-wg
+docker compose -p grandfw logs xray
+docker compose -p grandfw logs amnezia-wg
 ```
 
 ### Проверка конфигурации
@@ -150,36 +268,103 @@ docker compose logs amnezia-wg
 Вы можете использовать скрипт проверки:
 
 ```bash
-./health-check.sh
+sudo ./scripts/health-check.sh
 ```
 
 ### Проверка сетевых соединений
 
 ```bash
-netstat -tulnp | grep -E "(8443|51820)"
+# Проверка прослушиваемых портов
+sudo ss -tulnp | grep -E "(8443|9443|51820)"
+
+# Проверка подключения к внешнему IP
+curl -s https://api.ipify.org
+```
+
+## Работа с тестами
+
+### Запуск всех тестов
+
+```bash
+# Запуск всех тестов
+./tests/run_tests.sh all
+
+# Запуск unit тестов
+./tests/run_tests.sh unit
+
+# Запуск integration тестов
+./tests/run_tests.sh integration
+```
+
+### Запуск отдельных тестов
+
+```bash
+# Запуск конкретного теста
+./tests/unit/test_crypto.sh
+
+# Запуск с отладкой
+DEBUG=true ./tests/unit/test_validation.sh
 ```
 
 ## Безопасность
 
-- Все конфиденциальные данные генерируются локально
-- Ключи хранятся в файле `.env` с ограниченными правами доступа
-- Используется безопасная генерация случайных данных через OpenSSL
-- Файл `.gitignore` исключает `.env` из репозитория
-
-## Обновление системы
-
-Поскольку все конфигурации генерируются из параметров в файле `.env`, вы можете легко обновить базовые образы:
+### Проверка прав доступа
 
 ```bash
-docker compose pull
-docker compose up -d
+# Проверка прав на .env файл
+ls -la .env  # Должно быть: -rw------- (600)
+
+# Проверка владельца
+stat -c "%U:%G" .env  # Должно быть: root:root
 ```
 
-## Резервное копирование
+### Проверка валидации
 
-Для создания резервной копии системы сохраните следующие файлы:
+```bash
+# Запуск валидации переменных окружения
+source lib/validation.sh
+validate_env_vars
+```
 
-- `.env` - содержит все криптографические параметры
-- `connection_guide.txt` - содержит информацию для подключения
-- `docker-compose.yml` - определение сервисов
-- `setup.sh` - скрипт установки (на случай обновлений)
+## Примеры сценариев использования
+
+### Сценарий 1: Установка на новый сервер
+
+```bash
+# 1. Клонирование репозитория
+git clone https://github.com/asvspb/grandFW.git
+cd grandFW
+
+# 2. Запуск установки
+sudo ./setup.sh
+
+# 3. Следование инструкциям по вводу данных
+# 4. Получение информации для подключения
+```
+
+### Сценарий 2: Обновление конфигурации
+
+```bash
+# 1. Резервное копирование
+sudo ./scripts/backup.sh
+
+# 2. Обновление конфигурации
+sudo ./scripts/update.sh
+
+# 3. Проверка работоспособности
+sudo ./scripts/health-check.sh
+```
+
+### Сценарий 3: Диагностика проблем
+
+```bash
+# 1. Проверка состояния
+sudo ./scripts/health-check.sh
+
+# 2. Проверка логов
+docker compose -p grandfw logs xray
+docker compose -p grandfw logs amnezia-wg
+
+# 3. Запуск тестов
+./tests/run_tests.sh all
+```

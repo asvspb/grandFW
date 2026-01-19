@@ -1,14 +1,14 @@
-# Установка VPN-сервера
+# Установка grandFW VPN-сервера
 
 ## Требования
 
 ### Системные требования
 
-- Ubuntu 20.04 LTS или новее (или совместимая система)
-- 1 ГБ свободной оперативной памяти
-- 25 ГБ свободного места на диске
-- Root права (или доступ к sudo)
-- Открытые порты: 8443 (TCP) и 51820 (UDP)
+- **ОС**: Ubuntu 20.04 LTS или новее (или совместимая система)
+- **Память**: 1 ГБ свободной оперативной памяти (рекомендуется 2 ГБ)
+- **Диск**: 25 ГБ свободного места на диске
+- **Права**: Root (или доступ к sudo)
+- **Порты**: 8443 (TCP), 9443 (TCP/UDP), 51820 (UDP) - должны быть открыты
 
 ### Проверка требований
 
@@ -30,6 +30,21 @@ sudo -v
 df -h
 ```
 
+#### Проверка необходимых зависимостей
+
+```bash
+# Docker
+docker --version
+
+# Docker Compose
+docker compose version
+
+# Основные утилиты
+curl --version
+openssl version
+wg --version  # WireGuard tools
+```
+
 ## Подготовка к установке
 
 ### 1. Обновление системы
@@ -48,25 +63,36 @@ sudo apt install -y curl wget git
 
 ```bash
 sudo lsof -i :8443
+sudo lsof -i :9443
 sudo lsof -i :51820
 ```
 
+## Архитектура установки
+
+Проект использует модульную архитектуру с разделением на следующие компоненты:
+
+### Библиотеки (lib/)
+- `lib/common.sh` - общие функции (логирование, проверки, backup)
+- `lib/validation.sh` - валидация данных (UUID, IP, порты)
+- `lib/crypto.sh` - криптографические функции
+- `lib/env_loader.sh` - безопасная загрузка .env
+- `lib/docker.sh` - работа с Docker
+- `lib/firewall.sh` - настройка UFW
+
+### Скрипты (scripts/)
+- `scripts/setup.sh` - основной скрипт установки
+- `scripts/health-check.sh` - проверка работоспособности
+- `scripts/update.sh` - обновление конфигураций
+- `scripts/backup.sh` - резервное копирование
+- `scripts/uninstall.sh` - удаление
+
 ## Процесс установки
 
-### 1. Скачивание скрипта
-
-Если вы клонируете репозиторий:
+### 1. Клонирование репозитория
 
 ```bash
-git clone https://github.com/your-repo/grandFW.git
+git clone https://github.com/asvspb/grandFW.git
 cd grandFW
-```
-
-Или скачивание одного файла:
-
-```bash
-wget https://raw.githubusercontent.com/your-repo/grandFW/main/setup.sh
-chmod +x setup.sh
 ```
 
 ### 2. Запуск установки
@@ -82,12 +108,13 @@ sudo ./setup.sh
 Скрипт автоматически проверит и установит следующие зависимости:
 
 - Docker
+- Docker Compose
 - curl
 - openssl
 - wg (WireGuard утилита)
 - envsubst
-- shuf
 - qrencode (для генерации QR-кодов)
+- gettext-base
 
 ### 2. Генерация криптографических параметров
 
@@ -102,9 +129,11 @@ sudo ./setup.sh
 
 ### 3. Создание конфигурационных файлов
 
-- `xray_config.json` - конфигурация для Xray
+- `configs/xray.json.template` - шаблон конфигурации для Xray
+- `xray_config.json` - финальная конфигурация для Xray
 - `amnezia_client.conf` - клиентская конфигурация для AmneziaWG
 - `amnezia_server.conf` - серверная конфигурация для AmneziaWG
+- `docker-compose.yml` - конфигурация Docker Compose
 
 ### 4. Настройка Docker Compose
 
@@ -118,7 +147,8 @@ sudo ./setup.sh
 Скрипт настроит UFW (Uncomplicated Firewall):
 
 - Порт SSH (обычно 22)
-- Порт VLESS/Shadowsocks (8443/TCP)
+- Порт VLESS (8443/TCP)
+- Порт Shadowsocks (9443/TCP и 9443/UDP)
 - Порт AmneziaWG (51820/UDP)
 
 ### 6. Генерация информации для подключения
@@ -126,13 +156,14 @@ sudo ./setup.sh
 - VLESS + REALITY ссылка и QR-код
 - Shadowsocks-2022 ссылка и QR-код
 - AmneziaWG конфигурационный файл
+- Файл `connection_guide.txt` с полной инструкцией
 
 ## После установки
 
 ### 1. Проверка состояния сервисов
 
 ```bash
-docker compose ps
+docker compose -p grandfw ps
 ```
 
 Все контейнеры должны быть в состоянии "Up".
@@ -140,20 +171,89 @@ docker compose ps
 ### 2. Проверка логов
 
 ```bash
-docker compose logs xray
-docker compose logs amnezia-wg
+docker compose -p grandfw logs xray
+docker compose -p grandfw logs amnezia-wg
 ```
 
 ### 3. Получение информации о подключении
 
+Повторный запуск скрипта установки покажет информацию для подключения:
+
 ```bash
-sudo ./setup.sh --info
+sudo ./setup.sh
 ```
 
 ### 4. Проверка работоспособности
 
 ```bash
-./health-check.sh
+./scripts/health-check.sh
+```
+
+## Повторный запуск и обновления
+
+### Получение информации о подключении
+
+```bash
+sudo ./setup.sh
+```
+
+### Обновление конфигураций
+
+```bash
+sudo ./scripts/update.sh
+```
+
+## Рекомендации по безопасности
+
+1. **Храните файл .env в безопасности**
+   - Он содержит все криптографические ключи
+   - Не делитесь им и не коммитьте в репозиторий
+   - Файл автоматически защищен правами доступа 600
+
+2. **Ограничьте доступ к серверу**
+   - Используйте SSH-ключи вместо паролей
+   - Настройте fail2ban для защиты от брутфорса
+
+3. **Регулярно обновляйте систему**
+   - Обновляйте ОС и Docker
+   - Проверяйте обновления для Xray и других компонентов
+
+4. **Мониторьте использование ресурсов**
+   - Следите за нагрузкой на CPU и RAM
+   - Проверяйте логи на предмет подозрительной активности
+
+## Резервное копирование
+
+### Создание резервной копии
+
+```bash
+# Использование встроенного скрипта
+sudo ./scripts/backup.sh
+
+# Или вручную
+tar -czf vpn-backup-$(date +%F).tar.gz .env connection_guide.txt docker-compose.yml configs/ scripts/
+```
+
+### Восстановление из резервной копии
+
+```bash
+tar -xzf vpn-backup-date.tar.gz
+sudo ./setup.sh
+```
+
+## Удаление
+
+### Полное удаление VPN-сервера
+
+```bash
+docker compose -p grandfw down -v
+sudo rm -rf .env xray_config.json amnezia_client.conf amnezia_server.conf connection_guide.txt configs/ scripts/
+```
+
+### Использование скрипта удаления
+
+```bash
+sudo ./scripts/uninstall.sh
 ```
 
 ## Возможные проблемы и решения
@@ -191,53 +291,24 @@ newgrp docker
 
 **Решение**: Проверьте подключение к интернету и повторите установку.
 
-## Рекомендации по безопасности
+### Проблема: "Command not found" для docker compose
 
-1. **Храните файл .env в безопасности**
-   - Он содержит все криптографические ключи
-   - Не делитесь им и не коммитьте в репозиторий
-
-2. **Ограничьте доступ к серверу**
-   - Используйте SSH-ключи вместо паролей
-   - Настройте fail2ban для защиты от брутфорса
-
-3. **Регулярно обновляйте систему**
-   - Обновляйте ОС и Docker
-   - Проверяйте обновления для Xray и других компонентов
-
-4. **Мониторьте использование ресурсов**
-   - Следите за нагрузкой на CPU и RAM
-   - Проверяйте логи на предмет подозрительной активности
-
-## Резервное копирование
-
-### Создание резервной копии
+**Решение**: Убедитесь, что установлена новая версия Docker Compose (не docker-compose):
 
 ```bash
-tar -czf vpn-backup-$(date +%F).tar.gz .env connection_guide.txt docker-compose.yml setup.sh
-```
+# Проверьте версию
+docker compose version
 
-### Восстановление из резервной копии
-
-```bash
-tar -xzf vpn-backup-date.tar.gz
-sudo ./setup.sh
-```
-
-## Удаление
-
-### Полное удаление VPN-сервера
-
-```bash
-docker compose down
-sudo rm -rf .env xray_config.json amnezia_client.conf amnezia_server.conf connection_guide.txt
+# Если не работает, установите
+sudo apt install docker-compose-plugin
 ```
 
 ## Поддержка
 
 Если у вас возникли проблемы с установкой:
 
-1. Проверьте логи: `docker compose logs`
-2. Запустите скрипт проверки: `./health-check.sh`
+1. Проверьте логи: `docker compose -p grandfw logs`
+2. Запустите скрипт проверки: `./scripts/health-check.sh`
 3. Ознакомьтесь с документацией: `README.md`
-4. Создайте issue в репозитории с описанием проблемы
+4. Проверьте [TROUBLESHOOTING.md](TROUBLESHOOTING.md) для решения проблем
+5. Создайте issue в репозитории с описанием проблемы
