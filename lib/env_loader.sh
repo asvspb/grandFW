@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 #
 # lib/env_loader.sh - Безопасная загрузка переменных окружения
-# Версия: 3.0.0
+# Версия: 3.0.1
 #
 
-readonly LIB_ENV_LOADER_VERSION="3.0.0"
+readonly LIB_ENV_LOADER_VERSION="3.0.1"
 
 # Загрузка зависимостей
-if [[ -z "${LIB_COMMON_VERSION}" ]]; then
+if [[ -z "${LIB_COMMON_VERSION:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     source "${SCRIPT_DIR}/common.sh"
 fi
 
 #######################################
 # Безопасная загрузка переменных из .env файла
-# Предотвращает command injection
+# Предотвращает command injection и корректно обрабатывает символы '='
 # Arguments:
 #   $1 - путь к .env файлу (по умолчанию .env)
 # Returns:
@@ -34,38 +34,39 @@ load_env_safe() {
     local line_number=0
     local loaded_count=0
 
-    while IFS='=' read -r key value || [[ -n "$key" ]]; do
+    while read -r line || [[ -n "$line" ]]; do
         line_number=$((line_number + 1))
 
-        # Пропускаем пустые строки
-        [[ -z "$key" ]] && continue
+        # Пропускаем пустые строки и комментарии
+        [[ -z "$line" ]] && continue
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
 
-        # Пропускаем комментарии
-        [[ "$key" =~ ^[[:space:]]*# ]] && continue
+        # Ищем первое вхождение '='
+        if [[ "$line" == *"="* ]]; then
+            # Извлекаем ключ (все до первого '=')
+            local key="${line%%=*}"
+            # Извлекаем значение (все после первого '=')
+            local value="${line#*=}"
 
-        # Удаляем пробелы в начале и конце ключа
-        key=$(echo "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            # Очищаем ключ от пробелов
+            key=$(echo "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            [[ -z "$key" ]] && continue
 
-        # Пропускаем, если ключ пустой после обрезки
-        [[ -z "$key" ]] && continue
+            # Очищаем значение от начальных пробелов (но сохраняем trailing '=')
+            value=$(echo "$value" | sed 's/^[[:space:]]*//')
 
-        # Удаляем пробелы в начале значения
-        value=$(echo "$value" | sed 's/^[[:space:]]*//')
+            # Удаляем кавычки из значения (если есть)
+            if [[ "$value" =~ ^\"(.*)\"$ ]]; then
+                value="${BASH_REMATCH[1]}"
+            elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
+                value="${BASH_REMATCH[1]}"
+            fi
 
-        # Удаляем кавычки из значения (если есть)
-        if [[ "$value" =~ ^\"(.*)\"$ ]]; then
-            value="${BASH_REMATCH[1]}"
-        elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
-            value="${BASH_REMATCH[1]}"
+            # Экспортируем переменную
+            export "$key=$value"
+            loaded_count=$((loaded_count + 1))
+            log_debug "Загружена переменная: $key"
         fi
-
-        # Экспортируем переменную БЕЗ выполнения команд
-        # Используем declare вместо export для безопасности
-        export "$key=$value"
-        loaded_count=$((loaded_count + 1))
-
-        log_debug "Загружена переменная: $key"
-
     done < "$env_file"
 
     log_info "Загружено $loaded_count переменных из $env_file ✓"
