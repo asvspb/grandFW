@@ -159,8 +159,8 @@ generate_secrets() {
 # Конфигурация VPN-сервера
 UUID=$(openssl rand -hex 16)
 VMESS_UUID=$(openssl rand -hex 8)-$(openssl rand -hex 4)-$(openssl rand -hex 4)-$(openssl rand -hex 4)-$(openssl rand -hex 12)
-PRIVATE_KEY=$(openssl ecparam -genkey -name prime256v1 -noout | openssl ec -outform PEM | sed -n '2,$ p' | tr -d '\n')
-PUBLIC_KEY=$(echo "$PRIVATE_KEY" | openssl ec -pubout -outform PEM | sed -n '2,$ p' | tr -d '\n')
+PRIVATE_KEY=$(openssl ecparam -genkey -name prime256v1 -noout | openssl ec -outform PEM | grep -v '^\-\-' | tr -d '\n')
+PUBLIC_KEY=$(echo "$PRIVATE_KEY" | openssl ec -pubout -outform PEM | grep -v '^\-\-' | tr -d '\n')
 SHORT_ID=$(openssl rand -hex 8)
 SERVER_NAME=google.com
 SNI=$SERVER_NAME
@@ -205,8 +205,8 @@ EOF
         # Сохраняем текущие значения, если они не пустые
         CURRENT_UUID="${UUID:-$(openssl rand -hex 16)}"
         CURRENT_VMESS_UUID="${VMESS_UUID:-$(openssl rand -hex 8)-$(openssl rand -hex 4)-$(openssl rand -hex 4)-$(openssl rand -hex 4)-$(openssl rand -hex 12)}"
-        CURRENT_PRIVATE_KEY="${PRIVATE_KEY:-$(openssl ecparam -genkey -name prime256v1 -noout | openssl ec -outform PEM | sed -n '2,$ p' | tr -d '\n')}"
-        CURRENT_PUBLIC_KEY="${PUBLIC_KEY:-$(echo "$CURRENT_PRIVATE_KEY" | openssl ec -pubout -outform PEM | sed -n '2,$ p' | tr -d '\n')}"
+        CURRENT_PRIVATE_KEY="${PRIVATE_KEY:-$(openssl ecparam -genkey -name prime256v1 -noout | openssl ec -outform PEM | grep -v '^\-\-' | tr -d '\n')}"
+        CURRENT_PUBLIC_KEY="${PUBLIC_KEY:-$(echo "$CURRENT_PRIVATE_KEY" | openssl ec -pubout -outform PEM | grep -v '^\-\-' | tr -d '\n')}"
         CURRENT_SHORT_ID="${SHORT_ID:-$(openssl rand -hex 8)}"
         CURRENT_SERVER_NAME="${SERVER_NAME:-google.com}"
         CURRENT_SNI="${SNI:-$CURRENT_SERVER_NAME}"
