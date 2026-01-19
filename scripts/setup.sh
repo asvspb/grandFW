@@ -567,12 +567,15 @@ EOF
 health_check() {
     log_info "Проверка работоспособности сервисов..."
     
+    local compose_file="$SCRIPT_DIR/../docker-compose.yml"
+    local project_name="grandfw"
+    
     # Проверка статуса контейнеров
-    local containers_status=$(docker compose ps --format "table {{.Name}}\t{{.State}}\t{{.Status}}")
+    local containers_status=$(docker compose -p "$project_name" -f "$compose_file" ps --format "table {{.Name}}\t{{.State}}\t{{.Status}}")
     echo "$containers_status"
     
     # Проверка, запущены ли контейнеры
-    local running_containers=$(docker compose ps -q --filter "status=running" | wc -l)
+    local running_containers=$(docker compose -p "$project_name" -f "$compose_file" ps -q --filter "status=running" | wc -l)
     if [[ $running_containers -eq 0 ]]; then
         log_error "Нет запущенных контейнеров"
         return 1

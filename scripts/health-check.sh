@@ -7,12 +7,17 @@ set -euo pipefail
 # Версия скрипта
 readonly VERSION="3.0.0"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Загрузка библиотек
 source "${SCRIPT_DIR}/../lib/common.sh"
 source "${SCRIPT_DIR}/../lib/validation.sh"
 source "${SCRIPT_DIR}/../lib/env_loader.sh"
 source "${SCRIPT_DIR}/../lib/docker.sh"
+
+# Константы Docker
+readonly DOCKER_PROJECT_NAME="grandfw"
+readonly DOCKER_COMPOSE_FILE="${PROJECT_ROOT}/docker-compose.yml"
 
 # Основная функция проверки
 main() {
@@ -73,13 +78,13 @@ check_containers_running() {
     log_info "Проверка состояния контейнеров..."
     
     # Проверяем, есть ли файл docker-compose.yml
-    if [[ ! -f docker-compose.yml ]]; then
-        log_error "Файл docker-compose.yml не найден"
+    if [[ ! -f "$DOCKER_COMPOSE_FILE" ]]; then
+        log_error "Файл $DOCKER_COMPOSE_FILE не найден"
         return 1
     fi
     
     # Проверяем статус контейнеров
-    local containers_status=$(docker compose ps --format "table {{.Name}}\t{{.State}}\t{{.Status}}" 2>/dev/null || true)
+    local containers_status=$(docker compose -p "$DOCKER_PROJECT_NAME" -f "$DOCKER_COMPOSE_FILE" ps --format "table {{.Name}}\t{{.State}}\t{{.Status}}" 2>/dev/null || true)
     
     if [[ -z "$containers_status" ]]; then
         log_error "Не удалось получить статус контейнеров"
@@ -89,8 +94,8 @@ check_containers_running() {
     fi
     
     # Проверяем, запущены ли контейнеры
-    local running_containers=$(docker compose ps -q --filter "status=running" | wc -l)
-    local total_containers=$(docker compose config --services | wc -l 2>/dev/null || echo 2)
+    local running_containers=$(docker compose -p "$DOCKER_PROJECT_NAME" -f "$DOCKER_COMPOSE_FILE" ps -q --filter "status=running" | wc -l)
+    local total_containers=$(docker compose -p "$DOCKER_PROJECT_NAME" -f "$DOCKER_COMPOSE_FILE" config --services | wc -l 2>/dev/null || echo 2)
     
     if [[ $running_containers -eq 0 ]]; then
         log_error "Нет запущенных контейнеров"
@@ -108,10 +113,11 @@ check_ports_open() {
     log_info "Проверка открытых портов..."
     
     # Загружаем переменные из .env безопасно
-    if [[ -f .env ]]; then
-        load_env_safe .env
+    local env_file="${PROJECT_ROOT}/.env"
+    if [[ -f "$env_file" ]]; then
+        load_env_safe "$env_file"
     else
-        log_warn "Файл .env не найден, используем значения по умолчанию"
+        log_warn "Файл $env_file не найден, используем значения по умолчанию"
         export PORT_VLESS=8443
         export PORT_SHADOWSOCKS=9443
         export PORT_AMNEZIAWG=51820
@@ -120,25 +126,25 @@ check_ports_open() {
     # Проверяем, прослушиваются ли порты
     local ports_ok=true
     
-    if ! netstat -tulnp 2>/dev/null | grep -q ":$PORT_VLESS "; then
-        log_warn "Порт $PORT_VLESS не прослушивается"
+    if ! netstat -tulnp 2>/dev/null | grep -q ":${PORT_VLESS:-8443} "; then
+        log_warn "Порт ${PORT_VLESS:-8443} не прослушивается"
         ports_ok=false
     else
-        log_info "Порт $PORT_VLESS прослушивается"
+        log_info "Порт ${PORT_VLESS:-8443} прослушивается"
     fi
     
-    if ! netstat -tulnp 2>/dev/null | grep -q ":$PORT_SHADOWSOCKS "; then
-        log_warn "Порт $PORT_SHADOWSOCKS не прослушивается"
+    if ! netstat -tulnp 2>/dev/null | grep -q ":${PORT_SHADOWSOCKS:-9443} "; then
+        log_warn "Порт ${PORT_SHADOWSOCKS:-9443} не прослушивается"
         ports_ok=false
     else
-        log_info "Порт $PORT_SHADOWSOCKS прослушивается"
+        log_info "Порт ${PORT_SHADOWSOCKS:-9443} прослушивается"
     fi
     
-    if ! netstat -ulnp 2>/dev/null | grep -q ":$PORT_AMNEZIAWG "; then
-        log_warn "Порт $PORT_AMNEZIAWG не прослушивается"
+    if ! netstat -ulnp 2>/dev/null | grep -q ":${PORT_AMNEZIAWG:-51820} "; then
+        log_warn "Порт ${PORT_AMNEZIAWG:-51820} не прослушивается"
         ports_ok=false
     else
-        log_info "Порт $PORT_AMNEZIAWG прослушивается"
+        log_info "Порт ${PORT_AMNEZIAWG:-51820} прослушивается"
     fi
     
     if [[ "$ports_ok" == false ]]; then
@@ -151,41 +157,44 @@ check_config_files() {
     log_info "Проверка конфигурационных файлов..."
     
     local files_ok=true
+    local xray_config="${PROJECT_ROOT}/xray_config.json"
+    local amnezia_client="${PROJECT_ROOT}/amnezia_client.conf"
+    local amnezia_server="${PROJECT_ROOT}/amnezia_server.conf"
     
-    if [[ ! -f xray_config.json ]]; then
-        log_error "Файл xray_config.json не найден"
+    if [[ ! -f "$xray_config" ]]; then
+        log_error "Файл $xray_config не найден"
         files_ok=false
     else
-        log_info "Файл xray_config.json существует"
+        log_info "Файл $xray_config существует"
     fi
     
-    if [[ ! -f amnezia_client.conf ]]; then
-        log_error "Файл amnezia_client.conf не найден"
+    if [[ ! -f "$amnezia_client" ]]; then
+        log_error "Файл $amnezia_client не найден"
         files_ok=false
     else
-        log_info "Файл amnezia_client.conf существует"
+        log_info "Файл $amnezia_client существует"
     fi
     
-    if [[ ! -f amnezia_server.conf ]]; then
-        log_error "Файл amnezia_server.conf не найден"
+    if [[ ! -f "$amnezia_server" ]]; then
+        log_error "Файл $amnezia_server не найден"
         files_ok=false
     else
-        log_info "Файл amnezia_server.conf существует"
+        log_info "Файл $amnezia_server существует"
     fi
     
     # Проверяем, что конфигурационные файлы не пусты
-    if [[ -f xray_config.json ]] && [[ ! -s xray_config.json ]]; then
-        log_error "Файл xray_config.json пуст"
+    if [[ -f "$xray_config" ]] && [[ ! -s "$xray_config" ]]; then
+        log_error "Файл $xray_config пуст"
         files_ok=false
     fi
     
-    if [[ -f amnezia_client.conf ]] && [[ ! -s amnezia_client.conf ]]; then
-        log_error "Файл amnezia_client.conf пуст"
+    if [[ -f "$amnezia_client" ]] && [[ ! -s "$amnezia_client" ]]; then
+        log_error "Файл $amnezia_client пуст"
         files_ok=false
     fi
     
-    if [[ -f amnezia_server.conf ]] && [[ ! -s amnezia_server.conf ]]; then
-        log_error "Файл amnezia_server.conf пуст"
+    if [[ -f "$amnezia_server" ]] && [[ ! -s "$amnezia_server" ]]; then
+        log_error "Файл $amnezia_server пуст"
         files_ok=false
     fi
     
@@ -198,13 +207,14 @@ check_config_files() {
 check_env_file() {
     log_info "Проверка файла .env..."
     
-    if [[ ! -f .env ]]; then
-        log_error "Файл .env не найден"
+    local env_file="${PROJECT_ROOT}/.env"
+    if [[ ! -f "$env_file" ]]; then
+        log_error "Файл $env_file не найден"
         return 1
     fi
     
     # Загружаем переменные из .env безопасно
-    load_env_safe .env
+    load_env_safe "$env_file"
     
     # Проверяем, что все критические переменные определены
     local critical_vars=("UUID" "PRIVATE_KEY" "PUBLIC_KEY" "SHORT_ID" 
@@ -265,12 +275,14 @@ check_services_respond() {
     local services_ok=true
     
     # Получаем список сервисов
-    if docker compose ps --services >/dev/null 2>&1; then
+    local services=$(docker compose -p "$DOCKER_PROJECT_NAME" -f "$DOCKER_COMPOSE_FILE" ps --services 2>/dev/null || echo "")
+    
+    if [[ -n "$services" ]]; then
         while read -r service; do
             if [[ -n "$service" ]]; then
                 # Пропускаем сервисы, которые не предназначены для выполнения команд
                 if [[ "$service" != *"amnezia"* ]]; then
-                    if docker compose exec "$service" ps aux >/dev/null 2>&1; then
+                    if docker compose -p "$DOCKER_PROJECT_NAME" -f "$DOCKER_COMPOSE_FILE" exec "$service" ps aux >/dev/null 2>&1; then
                         log_info "Служба $service отвечает"
                     else
                         log_warn "Служба $service не отвечает"
@@ -278,7 +290,7 @@ check_services_respond() {
                     fi
                 fi
             fi
-        done < <(docker compose ps --services 2>/dev/null || echo "")
+        done <<< "$services"
     else
         log_warn "Не удалось получить список сервисов"
         services_ok=false
