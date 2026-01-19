@@ -87,6 +87,7 @@ main() {
 
     # Создание конфигурационных файлов
     create_configs
+    prepare_configs
 
     # Настройка firewall
     setup_firewall "$PORT_VLESS" "$PORT_SHADOWSOCKS" "$PORT_AMNEZIAWG"
@@ -338,13 +339,23 @@ prepare_configs() {
         exit 1
     fi
     
-    # Убедимся, что нет одноимённых директорий, которые могут помешать созданию файлов
-    rm -rf xray amnezia
-    mkdir -p xray amnezia
+    # Убедимся, что нет одноимённых директорий, которые могут помешать созданию файлов (КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ!)
+    local files_to_check=(
+        "$SCRIPT_DIR/../xray_config.json"
+        "$SCRIPT_DIR/../amnezia_client.conf"
+        "$SCRIPT_DIR/../amnezia_server.conf"
+    )
+    
+    for item in "${files_to_check[@]}"; do
+        if [[ -d "$item" ]]; then
+            log_warn "Обнаружена директория вместо файла: $item. Удаляю..."
+            rm -rf "$item"
+        fi
+    done
     
     # Подстановка значений в шаблоны
-    if [[ -f configs/xray.json.template ]]; then
-        envsubst < configs/xray.json.template > xray_config.json
+    if [[ -f "$SCRIPT_DIR/../configs/xray.json.template" ]]; then
+        envsubst < "$SCRIPT_DIR/../configs/xray.json.template" > "$SCRIPT_DIR/../xray_config.json"
     else
         log_error "Шаблон конфигурации Xray не найден: configs/xray.json.template"
         exit 1
@@ -352,7 +363,7 @@ prepare_configs() {
     
     # Создание конфигов для AmneziaWG
     # Клиентский конфиг (для импорта в приложение)
-    cat > amnezia_client.conf << EOF
+    cat > "$SCRIPT_DIR/../amnezia_client.conf" << EOF
 [Interface]
 PrivateKey = $WG_CLIENT_PRIVATE_KEY
 Address = 10.8.0.2/32
@@ -377,7 +388,7 @@ PresharedKey = $WG_PASSWORD
 EOF
     
     # Серверный конфиг (для Docker контейнера)
-    cat > amnezia_server.conf << EOF
+    cat > "$SCRIPT_DIR/../amnezia_server.conf" << EOF
 [Interface]
 PrivateKey = $WG_SERVER_PRIVATE_KEY
 Address = 10.8.0.1/24
